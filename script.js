@@ -21,6 +21,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const infoChatId = document.getElementById('infoChatId');
     const infoUserId = document.getElementById('infoUserId');
     const infoParticipants = document.getElementById('infoParticipants');
+    const shareBtn = document.getElementById('shareBtn');
+    const shareModal = document.getElementById('shareModal');
+    const closeShareBtn = document.getElementById('closeShareBtn');
+    const shareLinkInput = document.getElementById('shareLinkInput');
+    const copyShareBtn = document.getElementById('copyShareBtn');
+    const directShareInput = document.getElementById('directShareInput');
+    const copyDirectShareBtn = document.getElementById('copyDirectShareBtn');
+    const shareWhatsApp = document.getElementById('shareWhatsApp');
+    const shareTelegram = document.getElementById('shareTelegram');
+    const shareEmail = document.getElementById('shareEmail');
+    const qrCodeCanvas = document.getElementById('qrCodeCanvas');
 
     // Firebase references
     let chatRef;
@@ -36,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let countdownInterval = null;
     let expirationTimeout = null;
     let connectionStatus = false;
+    let qrCode = null;
 
     // Initialize
     init();
@@ -53,6 +65,13 @@ document.addEventListener('DOMContentLoaded', function() {
         closeNowBtn.addEventListener('click', expireSession);
         infoBtn.addEventListener('click', showInfoModal);
         closeInfoBtn.addEventListener('click', hideInfoModal);
+        shareBtn.addEventListener('click', showShareModal);
+        closeShareBtn.addEventListener('click', hideShareModal);
+        copyShareBtn.addEventListener('click', copyShareLink);
+        copyDirectShareBtn.addEventListener('click', copyDirectShareLink);
+        shareWhatsApp.addEventListener('click', shareViaWhatsApp);
+        shareTelegram.addEventListener('click', shareViaTelegram);
+        shareEmail.addEventListener('click', shareViaEmail);
         
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -61,11 +80,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Check for existing chat in URL hash
-        if (window.location.hash) {
-            const hashId = window.location.hash.substring(1);
-            if (hashId.length === 6) {
-                chatIdInput.value = hashId;
-            }
+        const hashId = window.location.hash.substring(1);
+        if (hashId && hashId.length === 6) {
+            // Auto-join chat if ID is in URL
+            chatIdInput.value = hashId;
+            joinExistingChat();
+        } else if (hashId) {
+            // Invalid hash, clear it
+            window.location.hash = '';
         }
         
         // Set up connection state listener
@@ -96,6 +118,9 @@ document.addEventListener('DOMContentLoaded', function() {
         addSystemMessage('You created a new temporary chat. Share the ID with someone to start chatting!');
         addSystemMessage(`Chat ID: ${currentChatId}`);
         
+        // Generate share link
+        updateShareLinks();
+        
         // Listen for participants
         listenForParticipants();
     }
@@ -125,6 +150,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         addSystemMessage(`You joined chat ${currentChatId}`);
         
+        // Generate share link
+        updateShareLinks();
+        
         // Listen for host presence
         checkHostPresence();
     }
@@ -151,6 +179,87 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Set up disconnect cleanup
         participantsRef.child(userId).onDisconnect().remove();
+    }
+
+    function updateShareLinks() {
+        const shareLink = `${window.location.origin}${window.location.pathname}#${currentChatId}`;
+        shareLinkInput.value = shareLink;
+        directShareInput.value = shareLink;
+        
+        // Generate QR code
+        if (qrCode) {
+            qrCode.clear();
+            qrCode.makeCode(shareLink);
+        } else {
+            qrCode = new QRCode(qrCodeCanvas, {
+                text: shareLink,
+                width: 150,
+                height: 150,
+                colorDark: "#f8fafc",
+                colorLight: "transparent",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+    }
+
+    function shareViaWhatsApp() {
+        const shareLink = directShareInput.value;
+        window.open(`https://wa.me/?text=${encodeURIComponent(`Join this temp chat: ${shareLink}`)}`, '_blank');
+    }
+
+    function shareViaTelegram() {
+        const shareLink = directShareInput.value;
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent('Join this temp chat')}`, '_blank');
+    }
+
+    function shareViaEmail() {
+        const shareLink = directShareInput.value;
+        window.location.href = `mailto:?subject=Join my temp chat&body=Click this link to join the chat: ${encodeURIComponent(shareLink)}`;
+    }
+
+    function copyShareLink() {
+        navigator.clipboard.writeText(shareLinkInput.value).then(() => {
+            showCopiedFeedback(copyShareBtn);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
+    function copyDirectShareLink() {
+        navigator.clipboard.writeText(directShareInput.value).then(() => {
+            showCopiedFeedback(copyDirectShareBtn);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
+    function showCopiedFeedback(button) {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => {
+            button.innerHTML = originalHTML;
+        }, 2000);
+    }
+
+    function showShareModal() {
+        updateShareLinks();
+        shareModal.classList.remove('hidden');
+    }
+
+    function hideShareModal() {
+        shareModal.classList.add('hidden');
+    }
+
+    function showInfoModal() {
+        infoChatId.textContent = currentChatId;
+        infoUserId.textContent = userId;
+        updateParticipantsCount();
+        updateShareLinks();
+        infoModal.classList.remove('hidden');
+    }
+
+    function hideInfoModal() {
+        infoModal.classList.add('hidden');
     }
 
     function listenForParticipants() {
@@ -201,6 +310,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function updateParticipantsCount() {
+        presenceRef.once('value').then(snapshot => {
+            const presenceData = snapshot.val() || {};
+            const activeParticipants = Object.keys(presenceData).filter(uid => presenceData[uid] === true).length;
+            infoParticipants.textContent = activeParticipants;
+        });
+    }
+
     function updatePresence(isPresent) {
         presenceRef.child(userId).set(isPresent);
         
@@ -210,14 +327,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         updateParticipantsCount();
-    }
-
-    function updateParticipantsCount() {
-        presenceRef.once('value').then(snapshot => {
-            const presenceData = snapshot.val() || {};
-            const activeParticipants = Object.keys(presenceData).filter(uid => presenceData[uid] === true).length;
-            infoParticipants.textContent = activeParticipants;
-        });
     }
 
     function sendMessage() {
@@ -331,7 +440,7 @@ document.addEventListener('DOMContentLoaded', function() {
         welcomeScreen.classList.remove('hidden');
         
         // Remove hash from URL
-        history.pushState("", document.title, window.location.pathname + window.location.search);
+        history.pushState("", document.title, window.location.pathname);
     }
 
     function generateUserId() {
@@ -373,17 +482,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             errorElement.remove();
         }, 3000);
-    }
-
-    function showInfoModal() {
-        infoChatId.textContent = currentChatId;
-        infoUserId.textContent = userId;
-        updateParticipantsCount();
-        infoModal.classList.remove('hidden');
-    }
-
-    function hideInfoModal() {
-        infoModal.classList.add('hidden');
     }
 
     function updateConnectionStatus() {
