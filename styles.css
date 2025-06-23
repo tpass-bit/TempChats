@@ -289,6 +289,7 @@ body {
 
 .header-actions {
     display: flex;
+    gap: 4px;
 }
 
 .icon-btn {
@@ -564,6 +565,81 @@ body {
     word-break: break-all;
 }
 
+.share-link-container {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.share-link-container input {
+    flex: 1;
+    padding: 8px 12px;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.icon-btn.small {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+}
+
+/* Share Modal */
+.share-modal {
+    max-width: 400px;
+}
+
+.share-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.share-option {
+    padding: 10px;
+    background-color: var(--bg-dark);
+    border: none;
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.share-option:hover {
+    background-color: var(--bg-lighter);
+}
+
+.share-option i {
+    font-size: 20px;
+}
+
+.qr-code-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.qr-code-container p {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
 /* Responsive Adjustments */
 @media (max-width: 400px) {
     .welcome-screen {
@@ -600,5 +676,9 @@ body {
         max-width: 90%;
         padding: 10px 14px;
         font-size: 14px;
+    }
+    
+    .share-buttons {
+        grid-template-columns: 1fr;
     }
 }
