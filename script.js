@@ -13,68 +13,95 @@ document.addEventListener('DOMContentLoaded', function() {
     const leaveChatBtn = document.getElementById('leaveChatBtn');
     const sessionExpiring = document.getElementById('sessionExpiring');
     const countdownElement = document.getElementById('countdown');
+    const closeNowBtn = document.getElementById('closeNowBtn');
 
     // State variables
     let currentChatId = '';
-    let peerConnection = null;
-    let dataChannel = null;
     let isHost = false;
     let countdownInterval = null;
     let expirationTimeout = null;
+    let otherUserActive = true;
 
-    // Event Listeners
-    createChatBtn.addEventListener('click', createNewChat);
-    joinChatBtn.addEventListener('click', joinExistingChat);
-    copyChatIdBtn.addEventListener('click', copyChatIdToClipboard);
-    sendMessageBtn.addEventListener('click', sendMessage);
-    leaveChatBtn.addEventListener('click', leaveChat);
-    messageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
+    // Initialize
+    init();
+
+    function init() {
+        // Event Listeners
+        createChatBtn.addEventListener('click', createNewChat);
+        joinChatBtn.addEventListener('click', joinExistingChat);
+        copyChatIdBtn.addEventListener('click', copyChatIdToClipboard);
+        sendMessageBtn.addEventListener('click', sendMessage);
+        leaveChatBtn.addEventListener('click', leaveChat);
+        closeNowBtn.addEventListener('click', expireSession);
+        
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Check for existing chat in URL hash
+        if (window.location.hash) {
+            const hashId = window.location.hash.substring(1);
+            if (hashId.length === 6) {
+                chatIdInput.value = hashId;
+            }
         }
-    });
+    }
 
-    // Functions
     function createNewChat() {
-        // Generate a random 6-character chat ID
         currentChatId = generateChatId();
         isHost = true;
+        otherUserActive = false;
         
-        // Simulate connection setup (in a real app, this would use WebRTC or similar)
+        // Update URL
+        window.location.hash = currentChatId;
+        
+        // Setup connection simulation
         setupConnection();
         
         // Update UI
-        displayChatId.textContent = `Chat ID: ${currentChatId}`;
+        displayChatId.textContent = currentChatId;
         welcomeScreen.classList.add('hidden');
         chatContainer.classList.remove('hidden');
-        chatContainer.classList.add('fade-in');
         
         // Add welcome message
-        addSystemMessage(`You created a new chat with ID: ${currentChatId}. Share this ID with someone to start chatting!`);
+        addSystemMessage('You created a new temporary chat. Share the ID with someone to start chatting!');
+        addSystemMessage(`Chat ID: ${currentChatId}`);
+        
+        // Start checking for participants
+        checkForParticipants();
     }
 
     function joinExistingChat() {
-        const chatId = chatIdInput.value.trim();
+        const chatId = chatIdInput.value.trim().toUpperCase();
         
-        if (!chatId) {
-            alert('Please enter a chat ID');
+        if (!chatId || chatId.length !== 6) {
+            showError('Please enter a valid 6-character chat ID');
             return;
         }
         
         currentChatId = chatId;
         isHost = false;
+        otherUserActive = true;
         
-        // Simulate connection setup
+        // Update URL
+        window.location.hash = currentChatId;
+        
+        // Setup connection simulation
         setupConnection();
         
         // Update UI
-        displayChatId.textContent = `Chat ID: ${currentChatId}`;
+        displayChatId.textContent = currentChatId;
         welcomeScreen.classList.add('hidden');
         chatContainer.classList.remove('hidden');
-        chatContainer.classList.add('fade-in');
         
         // Add welcome message
-        addSystemMessage(`You joined chat with ID: ${currentChatId}`);
+        addSystemMessage(`You joined chat ${currentChatId}`);
+        
+        // Notify host that someone joined
+        localStorage.setItem(`tempchat_${currentChatId}_join`, Date.now());
+        window.dispatchEvent(new Event('storage'));
     }
 
     function generateChatId() {
@@ -86,27 +113,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return result;
     }
 
-    function copyChatIdToClipboard() {
-        navigator.clipboard.writeText(currentChatId).then(() => {
-            // Show temporary feedback
-            const originalText = copyChatIdBtn.innerHTML;
-            copyChatIdBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            setTimeout(() => {
-                copyChatIdBtn.innerHTML = originalText;
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-        });
-    }
-
     function setupConnection() {
-        // In a real app, this would set up WebRTC connection
-        // For this demo, we'll simulate it with local storage
-        
-        // Listen for messages (simulated)
+        // Simulate connection with localStorage
         window.addEventListener('storage', handleStorageEvent);
         
-        // If host, set up a "room" in localStorage
+        // If host, set up the chat room
         if (isHost) {
             localStorage.setItem(`tempchat_${currentChatId}_host`, 'active');
         }
@@ -119,15 +130,40 @@ document.addEventListener('DOMContentLoaded', function() {
             if (messageData.sender === 'system') return;
             
             addMessage(messageData.text, 'received');
-        } else if (event.key === `tempchat_${currentChatId}_leave`) {
+            
+            // If host and first message, set other user as active
+            if (isHost && !otherUserActive) {
+                otherUserActive = true;
+            }
+        } 
+        else if (event.key === `tempchat_${currentChatId}_join`) {
+            // Someone joined the chat
+            if (isHost) {
+                otherUserActive = true;
+                addSystemMessage('Someone joined the chat!');
+            }
+        }
+        else if (event.key === `tempchat_${currentChatId}_leave`) {
             // Other user left
             if (isHost) {
+                otherUserActive = false;
                 startSessionExpiration();
             } else {
                 addSystemMessage('Host has left the chat. This chat will expire soon.');
                 startSessionExpiration();
             }
         }
+    }
+
+    function checkForParticipants() {
+        // Simulate checking for participants
+        setTimeout(() => {
+            if (!otherUserActive) {
+                addSystemMessage('Waiting for someone to join... Share the chat ID:');
+                addSystemMessage(currentChatId);
+                checkForParticipants();
+            }
+        }, 5000);
     }
 
     function sendMessage() {
@@ -138,8 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addMessage(messageText, 'sent');
         messageInput.value = '';
         
-        // In a real app, this would send via WebRTC data channel
-        // For demo, we'll use localStorage to simulate
+        // Simulate sending via localStorage
         const messageData = {
             text: messageText,
             timestamp: new Date().toISOString(),
@@ -147,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         localStorage.setItem(`tempchat_${currentChatId}_message`, JSON.stringify(messageData));
-        // Trigger storage event for other tab
+        // Trigger storage event
         window.dispatchEvent(new Event('storage'));
     }
 
@@ -159,11 +194,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         messageElement.innerHTML = `
             <div class="message-text">${text}</div>
-            <div class="message-info">${timestamp}</div>
+            <div class="message-time">${timestamp}</div>
         `;
         
         chatMessages.appendChild(messageElement);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        scrollToBottom();
     }
 
     function addSystemMessage(text) {
@@ -171,28 +206,33 @@ document.addEventListener('DOMContentLoaded', function() {
         messageElement.classList.add('message', 'system');
         messageElement.textContent = text;
         chatMessages.appendChild(messageElement);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    function copyChatIdToClipboard() {
+        navigator.clipboard.writeText(currentChatId).then(() => {
+            // Show feedback
+            const originalHTML = copyChatIdBtn.innerHTML;
+            copyChatIdBtn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                copyChatIdBtn.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
     function leaveChat() {
-        // Notify other user (if any) that we're leaving
+        // Notify other user
         localStorage.setItem(`tempchat_${currentChatId}_leave`, Date.now());
         window.dispatchEvent(new Event('storage'));
         
         // Clean up
-        if (isHost) {
-            localStorage.removeItem(`tempchat_${currentChatId}_host`);
-        }
-        
-        // Clear any pending timeouts
-        if (countdownInterval) clearInterval(countdownInterval);
-        if (expirationTimeout) clearTimeout(expirationTimeout);
-        
-        // Return to welcome screen
-        chatContainer.classList.add('hidden');
-        welcomeScreen.classList.remove('hidden');
-        chatMessages.innerHTML = '';
-        currentChatId = '';
+        resetChat();
     }
 
     function startSessionExpiration() {
@@ -217,16 +257,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function expireSession() {
         clearInterval(countdownInterval);
-        
+        resetChat();
+    }
+
+    function resetChat() {
         // Clean up
-        localStorage.removeItem(`tempchat_${currentChatId}_host`);
+        if (isHost) {
+            localStorage.removeItem(`tempchat_${currentChatId}_host`);
+        }
         localStorage.removeItem(`tempchat_${currentChatId}_message`);
+        localStorage.removeItem(`tempchat_${currentChatId}_join`);
         localStorage.removeItem(`tempchat_${currentChatId}_leave`);
         
-        // Return to welcome screen
-        sessionExpiring.classList.add('hidden');
-        welcomeScreen.classList.remove('hidden');
-        chatMessages.innerHTML = '';
+        // Reset state
         currentChatId = '';
+        isHost = false;
+        otherUserActive = true;
+        
+        // Clear UI
+        chatMessages.innerHTML = '';
+        messageInput.value = '';
+        sessionExpiring.classList.add('hidden');
+        chatContainer.classList.add('hidden');
+        welcomeScreen.classList.remove('hidden');
+        
+        // Remove hash from URL
+        history.pushState("", document.title, window.location.pathname + window.location.search);
+    }
+
+    function showError(message) {
+        const errorElement = document.createElement('div');
+        errorElement.classList.add('message', 'system');
+        errorElement.textContent = message;
+        errorElement.style.color = 'var(--danger)';
+        errorElement.style.animation = 'shake 0.5s ease-in-out';
+        
+        // Insert after the join section
+        const joinSection = document.querySelector('.join-section');
+        joinSection.parentNode.insertBefore(errorElement, joinSection.nextSibling);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            errorElement.remove();
+        }, 3000);
     }
 });
