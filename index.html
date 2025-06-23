@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -59,12 +61,12 @@
                         </button>
                     </div>
                     <div class="connection-status">
-                        <i class="fas fa-circle"></i> <span>Connected</span>
+                        <i class="fas fa-circle"></i> <span id="statusText">Connecting...</span>
                     </div>
                 </div>
                 
                 <div class="header-actions">
-                    <button class="icon-btn">
+                    <button class="icon-btn" id="infoBtn">
                         <i class="fas fa-ellipsis-vertical"></i>
                     </button>
                 </div>
@@ -97,8 +99,44 @@
                 </button>
             </div>
         </div>
+
+        <!-- Info Modal -->
+        <div class="modal-overlay hidden" id="infoModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Chat Info</h3>
+                    <button class="close-btn" id="closeInfoBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="info-item">
+                        <i class="fas fa-id-card"></i>
+                        <div>
+                            <p class="info-label">Chat ID</p>
+                            <p class="info-value" id="infoChatId"></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-user"></i>
+                        <div>
+                            <p class="info-label">Your ID</p>
+                            <p class="info-value" id="infoUserId"></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-users"></i>
+                        <div>
+                            <p class="info-label">Participants</p>
+                            <p class="info-value" id="infoParticipants">1</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <script src="firebase-config.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
