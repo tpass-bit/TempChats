@@ -221,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!otherUserPresent) {
                     otherUserPresent = true;
                     addSystemMessage('Someone joined the chat!');
+                    clearExpirationTimer();
                 }
             } else {
                 if (otherUserPresent) {
@@ -250,9 +251,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!hostPresent) {
                     addSystemMessage('Host has left the chat. This chat will expire soon.');
                     startSessionExpiration();
+                } else {
+                    clearExpirationTimer();
                 }
             });
         });
+    }
+
+    function clearExpirationTimer() {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        if (expirationTimeout) {
+            clearTimeout(expirationTimeout);
+            expirationTimeout = null;
+        }
+        sessionExpiring.classList.add('hidden');
     }
 
     function updatePresence(isPresent) {
