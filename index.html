@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temp Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="welcome-screen" id="welcomeScreen">
+            <div class="logo">
+                <i class="fas fa-comment-dots"></i>
+                <h1>Temp Chat</h1>
+            </div>
+            <div class="action-buttons">
+                <button id="createChatBtn" class="btn primary">
+                    <i class="fas fa-plus"></i> Create New Chat
+                </button>
+                <div class="or-divider">
+                    <span>OR</span>
+                </div>
+                <div class="join-chat">
+                    <input type="text" id="chatIdInput" placeholder="Enter Chat ID">
+                    <button id="joinChatBtn" class="btn secondary">
+                        <i class="fas fa-sign-in-alt"></i> Join Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container hidden" id="chatContainer">
+            <div class="chat-header">
+                <div class="chat-id-display">
+                    <span id="displayChatId">Chat ID: </span>
+                    <button id="copyChatIdBtn" class="icon-btn">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <button id="leaveChatBtn" class="btn danger">
+                    <i class="fas fa-sign-out-alt"></i> Leave
+                </button>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="Type your message...">
+                <button id="sendMessageBtn" class="btn primary">
+                    <i class="fas fa-paper-plane"></i> Send
+                </button>
+            </div>
+        </div>
+
+        <div class="session-expiring hidden" id="sessionExpiring">
+            <div class="expiring-content">
+                <i class="fas fa-hourglass-end"></i>
+                <h2>Chat Expiring</h2>
+                <p>User left. Chat will expire in <span id="countdown">10</span> seconds.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
