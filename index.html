@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Temp Chat</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
@@ -66,6 +66,9 @@
                 </div>
                 
                 <div class="header-actions">
+                    <button class="icon-btn" id="shareBtn">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
                     <button class="icon-btn" id="infoBtn">
                         <i class="fas fa-ellipsis-vertical"></i>
                     </button>
@@ -131,11 +134,60 @@
                             <p class="info-value" id="infoParticipants">1</p>
                         </div>
                     </div>
+                    <div class="info-item">
+                        <i class="fas fa-share-alt"></i>
+                        <div>
+                            <p class="info-label">Share Link</p>
+                            <div class="share-link-container">
+                                <input type="text" id="shareLinkInput" readonly>
+                                <button id="copyShareBtn" class="icon-btn small">
+                                    <i class="far fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Share Modal -->
+        <div class="modal-overlay hidden" id="shareModal">
+            <div class="modal-content share-modal">
+                <div class="modal-header">
+                    <h3>Share Chat</h3>
+                    <button class="close-btn" id="closeShareBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Share this link to invite others to the chat:</p>
+                    <div class="share-link-container">
+                        <input type="text" id="directShareInput" readonly>
+                        <button id="copyDirectShareBtn" class="icon-btn small">
+                            <i class="far fa-copy"></i>
+                        </button>
+                    </div>
+                    <div class="share-buttons">
+                        <button class="share-option" id="shareWhatsApp">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </button>
+                        <button class="share-option" id="shareTelegram">
+                            <i class="fab fa-telegram"></i> Telegram
+                        </button>
+                        <button class="share-option" id="shareEmail">
+                            <i class="fas fa-envelope"></i> Email
+                        </button>
+                    </div>
+                    <div class="qr-code-container">
+                        <canvas id="qrCodeCanvas"></canvas>
+                        <p>Scan to join</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
 </body>
