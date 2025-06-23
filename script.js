@@ -14,25 +14,45 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionExpiring = document.getElementById('sessionExpiring');
     const countdownElement = document.getElementById('countdown');
     const closeNowBtn = document.getElementById('closeNowBtn');
+    const statusText = document.getElementById('statusText');
+    const infoBtn = document.getElementById('infoBtn');
+    const infoModal = document.getElementById('infoModal');
+    const closeInfoBtn = document.getElementById('closeInfoBtn');
+    const infoChatId = document.getElementById('infoChatId');
+    const infoUserId = document.getElementById('infoUserId');
+    const infoParticipants = document.getElementById('infoParticipants');
 
+    // Firebase references
+    let chatRef;
+    let messagesRef;
+    let presenceRef;
+    let participantsRef;
+    
     // State variables
     let currentChatId = '';
     let isHost = false;
+    let userId;
+    let otherUserPresent = false;
     let countdownInterval = null;
     let expirationTimeout = null;
-    let otherUserActive = true;
+    let connectionStatus = false;
 
     // Initialize
     init();
 
     function init() {
-        // Event Listeners
+        // Generate unique user ID
+        userId = generateUserId();
+        
+        // Set up event listeners
         createChatBtn.addEventListener('click', createNewChat);
         joinChatBtn.addEventListener('click', joinExistingChat);
         copyChatIdBtn.addEventListener('click', copyChatIdToClipboard);
         sendMessageBtn.addEventListener('click', sendMessage);
         leaveChatBtn.addEventListener('click', leaveChat);
         closeNowBtn.addEventListener('click', expireSession);
+        infoBtn.addEventListener('click', showInfoModal);
+        closeInfoBtn.addEventListener('click', hideInfoModal);
         
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -47,30 +67,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 chatIdInput.value = hashId;
             }
         }
+        
+        // Set up connection state listener
+        const connectedRef = database.ref('.info/connected');
+        connectedRef.on('value', (snap) => {
+            connectionStatus = snap.val();
+            updateConnectionStatus();
+        });
     }
 
     function createNewChat() {
         currentChatId = generateChatId();
         isHost = true;
-        otherUserActive = false;
-        
-        // Update URL
+        otherUserPresent = false;
         window.location.hash = currentChatId;
         
-        // Setup connection simulation
-        setupConnection();
+        // Initialize Firebase references
+        setupFirebaseReferences();
+        
+        // Set host presence
+        updatePresence(true);
         
         // Update UI
         displayChatId.textContent = currentChatId;
         welcomeScreen.classList.add('hidden');
         chatContainer.classList.remove('hidden');
         
-        // Add welcome message
         addSystemMessage('You created a new temporary chat. Share the ID with someone to start chatting!');
         addSystemMessage(`Chat ID: ${currentChatId}`);
         
-        // Start checking for participants
-        checkForParticipants();
+        // Listen for participants
+        listenForParticipants();
     }
 
     function joinExistingChat() {
@@ -83,87 +110,114 @@ document.addEventListener('DOMContentLoaded', function() {
         
         currentChatId = chatId;
         isHost = false;
-        otherUserActive = true;
-        
-        // Update URL
         window.location.hash = currentChatId;
         
-        // Setup connection simulation
-        setupConnection();
+        // Initialize Firebase references
+        setupFirebaseReferences();
+        
+        // Set participant presence
+        updatePresence(true);
         
         // Update UI
         displayChatId.textContent = currentChatId;
         welcomeScreen.classList.add('hidden');
         chatContainer.classList.remove('hidden');
         
-        // Add welcome message
         addSystemMessage(`You joined chat ${currentChatId}`);
         
-        // Notify host that someone joined
-        localStorage.setItem(`tempchat_${currentChatId}_join`, Date.now());
-        window.dispatchEvent(new Event('storage'));
+        // Listen for host presence
+        checkHostPresence();
     }
 
-    function generateChatId() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let result = '';
-        for (let i = 0; i < 6; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-    }
-
-    function setupConnection() {
-        // Simulate connection with localStorage
-        window.addEventListener('storage', handleStorageEvent);
+    function setupFirebaseReferences() {
+        chatRef = database.ref(`chats/${currentChatId}`);
+        messagesRef = chatRef.child('messages');
+        presenceRef = chatRef.child('presence');
+        participantsRef = chatRef.child('participants');
         
-        // If host, set up the chat room
-        if (isHost) {
-            localStorage.setItem(`tempchat_${currentChatId}_host`, 'active');
-        }
+        // Set up message listener
+        messagesRef.limitToLast(100).on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            if (message.senderId !== userId) {
+                addMessage(message.text, 'received');
+            }
+        });
+        
+        // Add user to participants list
+        participantsRef.child(userId).set({
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
+            isHost: isHost
+        });
+        
+        // Set up disconnect cleanup
+        participantsRef.child(userId).onDisconnect().remove();
     }
 
-    function handleStorageEvent(event) {
-        if (event.key === `tempchat_${currentChatId}_message`) {
-            // New message received
-            const messageData = JSON.parse(event.newValue);
-            if (messageData.sender === 'system') return;
+    function listenForParticipants() {
+        presenceRef.on('value', (snapshot) => {
+            const presenceData = snapshot.val() || {};
+            const participants = Object.keys(presenceData).filter(uid => presenceData[uid] === true);
             
-            addMessage(messageData.text, 'received');
+            // Count other participants (excluding self)
+            const otherParticipants = participants.filter(uid => uid !== userId).length;
             
-            // If host and first message, set other user as active
-            if (isHost && !otherUserActive) {
-                otherUserActive = true;
-            }
-        } 
-        else if (event.key === `tempchat_${currentChatId}_join`) {
-            // Someone joined the chat
-            if (isHost) {
-                otherUserActive = true;
-                addSystemMessage('Someone joined the chat!');
-            }
-        }
-        else if (event.key === `tempchat_${currentChatId}_leave`) {
-            // Other user left
-            if (isHost) {
-                otherUserActive = false;
-                startSessionExpiration();
+            if (otherParticipants > 0) {
+                if (!otherUserPresent) {
+                    otherUserPresent = true;
+                    addSystemMessage('Someone joined the chat!');
+                    updateParticipantsCount();
+                }
             } else {
-                addSystemMessage('Host has left the chat. This chat will expire soon.');
-                startSessionExpiration();
+                if (otherUserPresent) {
+                    otherUserPresent = false;
+                    addSystemMessage('Other participant left');
+                    updateParticipantsCount();
+                    if (isHost) {
+                        startSessionExpiration();
+                    }
+                }
             }
-        }
+        });
     }
 
-    function checkForParticipants() {
-        // Simulate checking for participants
-        setTimeout(() => {
-            if (!otherUserActive) {
-                addSystemMessage('Waiting for someone to join... Share the chat ID:');
-                addSystemMessage(currentChatId);
-                checkForParticipants();
-            }
-        }, 5000);
+    function checkHostPresence() {
+        presenceRef.on('value', (snapshot) => {
+            const presenceData = snapshot.val() || {};
+            
+            // Check if any host is present
+            participantsRef.orderByChild('isHost').equalTo(true).once('value', (hostSnapshot) => {
+                const hosts = hostSnapshot.val() || {};
+                const hostIds = Object.keys(hosts);
+                
+                const hostPresent = hostIds.some(hostId => 
+                    hostId !== userId && presenceData[hostId] === true
+                );
+                
+                if (!hostPresent) {
+                    addSystemMessage('Host has left the chat. This chat will expire soon.');
+                    startSessionExpiration();
+                }
+            });
+        });
+    }
+
+    function updatePresence(isPresent) {
+        presenceRef.child(userId).set(isPresent);
+        
+        // Set up disconnect cleanup
+        if (isPresent) {
+            presenceRef.child(userId).onDisconnect().set(false);
+        }
+        
+        updateParticipantsCount();
+    }
+
+    function updateParticipantsCount() {
+        presenceRef.once('value').then(snapshot => {
+            const presenceData = snapshot.val() || {};
+            const activeParticipants = Object.keys(presenceData).filter(uid => presenceData[uid] === true).length;
+            infoParticipants.textContent = activeParticipants;
+        });
     }
 
     function sendMessage() {
@@ -174,16 +228,17 @@ document.addEventListener('DOMContentLoaded', function() {
         addMessage(messageText, 'sent');
         messageInput.value = '';
         
-        // Simulate sending via localStorage
+        // Push to Firebase
         const messageData = {
             text: messageText,
-            timestamp: new Date().toISOString(),
-            sender: 'user'
+            senderId: userId,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
         };
         
-        localStorage.setItem(`tempchat_${currentChatId}_message`, JSON.stringify(messageData));
-        // Trigger storage event
-        window.dispatchEvent(new Event('storage'));
+        messagesRef.push(messageData).catch(error => {
+            addSystemMessage('Failed to send message. Please check your connection.');
+            console.error('Message send error:', error);
+        });
     }
 
     function addMessage(text, type) {
@@ -210,26 +265,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function copyChatIdToClipboard() {
-        navigator.clipboard.writeText(currentChatId).then(() => {
-            // Show feedback
-            const originalHTML = copyChatIdBtn.innerHTML;
-            copyChatIdBtn.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => {
-                copyChatIdBtn.innerHTML = originalHTML;
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-        });
+        setTimeout(() => {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 50);
     }
 
     function leaveChat() {
-        // Notify other user
-        localStorage.setItem(`tempchat_${currentChatId}_leave`, Date.now());
-        window.dispatchEvent(new Event('storage'));
+        // Update presence
+        updatePresence(false);
         
         // Clean up
         resetChat();
@@ -261,18 +304,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetChat() {
-        // Clean up
-        if (isHost) {
-            localStorage.removeItem(`tempchat_${currentChatId}_host`);
+        // Clean up Firebase references
+        if (presenceRef) {
+            presenceRef.child(userId).set(false);
+            presenceRef.off();
         }
-        localStorage.removeItem(`tempchat_${currentChatId}_message`);
-        localStorage.removeItem(`tempchat_${currentChatId}_join`);
-        localStorage.removeItem(`tempchat_${currentChatId}_leave`);
+        
+        if (messagesRef) {
+            messagesRef.off();
+        }
+        
+        if (participantsRef) {
+            participantsRef.child(userId).remove();
+        }
         
         // Reset state
         currentChatId = '';
         isHost = false;
-        otherUserActive = true;
+        otherUserPresent = false;
         
         // Clear UI
         chatMessages.innerHTML = '';
@@ -285,6 +334,32 @@ document.addEventListener('DOMContentLoaded', function() {
         history.pushState("", document.title, window.location.pathname + window.location.search);
     }
 
+    function generateUserId() {
+        return 'user-' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function generateChatId() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let result = '';
+        for (let i = 0; i < 6; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    function copyChatIdToClipboard() {
+        navigator.clipboard.writeText(currentChatId).then(() => {
+            // Show feedback
+            const originalHTML = copyChatIdBtn.innerHTML;
+            copyChatIdBtn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                copyChatIdBtn.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+        });
+    }
+
     function showError(message) {
         const errorElement = document.createElement('div');
         errorElement.classList.add('message', 'system');
@@ -292,13 +367,36 @@ document.addEventListener('DOMContentLoaded', function() {
         errorElement.style.color = 'var(--danger)';
         errorElement.style.animation = 'shake 0.5s ease-in-out';
         
-        // Insert after the join section
         const joinSection = document.querySelector('.join-section');
         joinSection.parentNode.insertBefore(errorElement, joinSection.nextSibling);
         
-        // Remove after 3 seconds
         setTimeout(() => {
             errorElement.remove();
         }, 3000);
+    }
+
+    function showInfoModal() {
+        infoChatId.textContent = currentChatId;
+        infoUserId.textContent = userId;
+        updateParticipantsCount();
+        infoModal.classList.remove('hidden');
+    }
+
+    function hideInfoModal() {
+        infoModal.classList.add('hidden');
+    }
+
+    function updateConnectionStatus() {
+        if (connectionStatus) {
+            statusText.textContent = 'Connected';
+            statusText.style.color = 'var(--success)';
+            document.querySelector('.connection-status i').className = 'fas fa-circle connected';
+            sendMessageBtn.disabled = false;
+        } else {
+            statusText.textContent = 'Disconnected';
+            statusText.style.color = 'var(--danger)';
+            document.querySelector('.connection-status i').className = 'fas fa-circle disconnected';
+            sendMessageBtn.disabled = true;
+        }
     }
 });
