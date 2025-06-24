@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Temp-b Chat</title>
+    <title>Temp Pro Chat</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -19,8 +19,8 @@
                     <div class="logo-icon">
                         <i class="fas fa-comment-dots"></i>
                     </div>
-                    <h1>Temp-Beta Chat</h1>
-                    <p class="tagline">Secure temporary conversations</p>
+                    <h1>Temp Pro Chat</h1>
+                    <p class="tagline">Secure real-time conversations</p>
                 </div>
                 
                 <div class="action-buttons">
@@ -42,7 +42,7 @@
             </div>
             
             <div class="app-footer">
-                <p>Messages disappear when chat ends</p>
+                <p>Messages disappear when chat ends | v2.0</p>
             </div>
         </div>
 
@@ -66,8 +66,14 @@
                 </div>
                 
                 <div class="header-actions">
-                    <button class="icon-btn" id="shareBtn">
+                    <button class="icon-btn" id="participantsBtn" title="Participants">
+                        <i class="fas fa-users"></i>
+                    </button>
+                    <button class="icon-btn" id="shareBtn" title="Share">
                         <i class="fas fa-share-alt"></i>
+                    </button>
+                    <button class="icon-btn" id="settingsBtn" title="Settings">
+                        <i class="fas fa-cog"></i>
                     </button>
                 </div>
             </div>
@@ -76,6 +82,9 @@
             
             <div class="chat-input-container">
                 <div class="input-wrapper">
+                    <button class="emoji-btn" id="emojiBtn">
+                        <i class="far fa-smile"></i>
+                    </button>
                     <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
                     <button id="sendMessageBtn" class="send-btn">
                         <i class="fas fa-paper-plane"></i>
@@ -115,6 +124,17 @@
                             <i class="far fa-copy"></i>
                         </button>
                     </div>
+                    <div class="share-buttons">
+                        <button class="share-option" id="shareWhatsApp">
+                            <i class="fab fa-whatsapp"></i> WhatsApp
+                        </button>
+                        <button class="share-option" id="shareTelegram">
+                            <i class="fab fa-telegram"></i> Telegram
+                        </button>
+                        <button class="share-option" id="shareEmail">
+                            <i class="fas fa-envelope"></i> Email
+                        </button>
+                    </div>
                     <div class="qr-code-container">
                         <canvas id="qrCodeCanvas"></canvas>
                         <p>Scan to join</p>
@@ -122,10 +142,74 @@
                 </div>
             </div>
         </div>
+
+        <!-- Participants Modal -->
+        <div class="modal-overlay hidden" id="participantsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Participants</h3>
+                    <button class="close-btn" id="closeParticipantsBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <ul class="participants-list" id="participantsList">
+                        <!-- Participants will be added here -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay hidden" id="settingsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Settings</h3>
+                    <button class="close-btn" id="closeSettingsBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-option">
+                        <label for="darkModeToggle">Dark Mode</label>
+                        <label class="switch">
+                            <input type="checkbox" id="darkModeToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="settings-option">
+                        <label for="notificationToggle">Notifications</label>
+                        <label class="switch">
+                            <input type="checkbox" id="notificationToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="settings-option">
+                        <label for="soundToggle">Message Sounds</label>
+                        <label class="switch">
+                            <input type="checkbox" id="soundToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <button class="btn danger" id="clearChatBtn">
+                        <i class="fas fa-trash"></i> Clear Chat History
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emoji Picker -->
+        <div class="emoji-picker hidden" id="emojiPicker"></div>
     </div>
 
+    <!-- Audio Elements -->
+    <audio id="messageSound" src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3" preload="auto"></audio>
+    <audio id="notificationSound" src="https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3" preload="auto"></audio>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/data"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/react"></script>
     <script src="config.js"></script>
-    <script src="sc.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
