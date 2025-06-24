@@ -1,12 +1,181 @@
+document.addEventListener('DOMContentLoaded', function() {
+    // Firebase will be initialized from config.js
+    const database = firebase.database();
+
+    // DOM Elements
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const chatContainer = document.getElementById('chatContainer');
+    const createChatBtn = document.getElementById('createChatBtn');
+    const joinChatBtn = document.getElementById('joinChatBtn');
+    const chatIdInput = document.getElementById('chatIdInput');
+    const displayChatId = document.getElementById('displayChatId');
+    const copyChatIdBtn = document.getElementById('copyChatIdBtn');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    const leaveChatBtn = document.getElementById('leaveChatBtn');
+    const sessionExpiring = document.getElementById('sessionExpiring');
+    const countdownElement = document.getElementById('countdown');
+    const closeNowBtn = document.getElementById('closeNowBtn');
+    const statusText = document.getElementById('statusText');
+    const shareBtn = document.getElementById('shareBtn');
+    const shareModal = document.getElementById('shareModal');
+    const closeShareBtn = document.getElementById('closeShareBtn');
+    const shareLinkInput = document.getElementById('shareLinkInput');
+    const copyShareBtn = document.getElementById('copyShareBtn');
+    const shareWhatsApp = document.getElementById('shareWhatsApp');
+    const shareTelegram = document.getElementById('shareTelegram');
+    const shareEmail = document.getElementById('shareEmail');
+    const qrCodeCanvas = document.getElementById('qrCodeCanvas');
+    const participantsBtn = document.getElementById('participantsBtn');
+    const participantsModal = document.getElementById('participantsModal');
+    const closeParticipantsBtn = document.getElementById('closeParticipantsBtn');
+    const participantsList = document.getElementById('participantsList');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    const notificationToggle = document.getElementById('notificationToggle');
+    const soundToggle = document.getElementById('soundToggle');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPicker = document.getElementById('emojiPicker');
+    const messageSound = document.getElementById('messageSound');
+    const notificationSound = document.getElementById('notificationSound');
+
+    // Firebase references
+    let chatRef;
+    let messagesRef;
+    let presenceRef;
+    let participantsRef;
+    
+    // State variables
+    let currentChatId = '';
+    let isHost = false;
+    let userId;
+    let otherUserPresent = false;
+    let countdownInterval = null;
+    let expirationTimeout = null;
+    let connectionStatus = false;
+    let qrCode = null;
+    let emojiMart;
+
+    // Initialize the app
+    init();
+
+    function init() {
+        // Generate unique user ID
+        userId = generateUserId();
+        
+        // Set up event listeners
+        createChatBtn.addEventListener('click', createNewChat);
+        joinChatBtn.addEventListener('click', joinExistingChat);
+        copyChatIdBtn.addEventListener('click', copyChatIdToClipboard);
+        sendMessageBtn.addEventListener('click', sendMessage);
+        leaveChatBtn.addEventListener('click', leaveChat);
+        closeNowBtn.addEventListener('click', expireSession);
+        shareBtn.addEventListener('click', showShareModal);
+        closeShareBtn.addEventListener('click', hideShareModal);
+        copyShareBtn.addEventListener('click', copyShareLink);
+        shareWhatsApp.addEventListener('click', shareViaWhatsApp);
+        shareTelegram.addEventListener('click', shareViaTelegram);
+        shareEmail.addEventListener('click', shareViaEmail);
+        participantsBtn.addEventListener('click', showParticipantsModal);
+        closeParticipantsBtn.addEventListener('click', hideParticipantsModal);
+        settingsBtn.addEventListener('click', showSettingsModal);
+        closeSettingsBtn.addEventListener('click', hideSettingsModal);
+        clearChatBtn.addEventListener('click', clearChatHistory);
+        emojiBtn.addEventListener('click', toggleEmojiPicker);
+        
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Check for existing chat in URL hash
+        const hashId = window.location.hash.substring(1);
+        if (hashId && hashId.length === 6) {
+            chatIdInput.value = hashId;
+            joinExistingChat();
+        } else if (hashId) {
+            window.location.hash = '';
+        }
+        
+        // Set up connection state listener
+        const connectedRef = database.ref('.info/connected');
+        connectedRef.on('value', (snap) => {
+            connectionStatus = snap.val();
+            updateConnectionStatus();
+        });
+
+        // Initialize emoji picker
+        initEmojiPicker();
+
+        // Load settings
+        loadSettings();
+    }
+
+    function createNewChat() {
+        currentChatId = generateChatId();
+        isHost = true;
+        otherUserPresent = false;
+        window.location.hash = currentChatId;
+        
+        setupFirebaseReferences();
+        updatePresence(true);
+        
+        displayChatId.textContent = currentChatId;
+        welcomeScreen.classList.add('hidden');
+        chatContainer.classList.remove('hidden');
+        
+        addSystemMessage('You created a new temporary chat. Share the ID to start chatting!');
+        addSystemMessage(`Chat ID: ${currentChatId}`);
+        
+        updateShareLink();
+        listenForParticipants();
+    }
+
+    function joinExistingChat() {
+        const chatId = chatIdInput.value.trim().toUpperCase();
+        
+        if (!chatId || chatId.length !== 6) {
+            showError('Please enter a valid 6-character chat ID');
+            return;
+        }
+        
+        currentChatId = chatId;
+        isHost = false;
+        window.location.hash = currentChatId;
+        
+        setupFirebaseReferences();
+        updatePresence(true);
+        
+        displayChatId.textContent = currentChatId;
+        welcomeScreen.classList.add('hidden');
+        chatContainer.classList.remove('hidden');
+        
+        addSystemMessage(`You joined chat ${currentChatId}`);
+        
+        updateShareLink();
+        checkHostPresence();
+    }
+
+    function setupFirebaseReferences() {
+        chatRef = database.ref(`chats/${currentChatId}`);
+        messagesRef = chatRef.child('messages');
+        presenceRef = chatRef.child('presence');
+        participantsRef = chatRef.child('participants');
+        
+        messagesRef.limitToLast(100).on('child_added', (snapshot) => {
+            const message = snapshot.val();
             addMessageToUI(message);
             
-            // Play sound if enabled and message is from another user
             if (soundToggle.checked && message.senderId !== userId) {
                 messageSound.currentTime = 0;
                 messageSound.play();
             }
             
-            // Show notification if window is not focused
             if (notificationToggle.checked && message.senderId !== userId && !document.hasFocus()) {
                 showNotification('New message', message.text);
                 notificationSound.currentTime = 0;
@@ -21,11 +190,9 @@
         const myPresenceRef = presenceRef.child(userId);
         
         if (isOnline) {
-            // Set presence to true and create onDisconnect to set to false
             myPresenceRef.set(true);
             myPresenceRef.onDisconnect().set(false);
         } else {
-            // Remove presence
             myPresenceRef.remove();
             myPresenceRef.onDisconnect().cancel();
         }
@@ -34,20 +201,14 @@
     function listenForParticipants() {
         presenceRef.on('value', (snapshot) => {
             const participants = snapshot.val() || {};
-            const participantCount = Object.keys(participants).length;
-            
-            // Update participants list
             updateParticipantsList(participants);
             
-            // Check if other users are present
-            const newOtherUserPresent = participantCount > 1;
+            const newOtherUserPresent = Object.keys(participants).length > 1;
             
             if (newOtherUserPresent && !otherUserPresent) {
-                // Another user joined
                 otherUserPresent = true;
                 addSystemMessage('Someone joined the chat!');
                 
-                // Cancel any pending expiration
                 if (expirationTimeout) {
                     clearTimeout(expirationTimeout);
                     expirationTimeout = null;
@@ -58,11 +219,9 @@
                 }
                 sessionExpiring.classList.add('hidden');
             } else if (!newOtherUserPresent && otherUserPresent) {
-                // Last other user left
                 otherUserPresent = false;
                 addSystemMessage('The other participant left the chat');
                 
-                // Start expiration countdown if host
                 if (isHost) {
                     startSessionExpiration();
                 }
@@ -75,7 +234,6 @@
             const participants = snapshot.val() || {};
             
             if (Object.keys(participants).length === 0) {
-                // Host not present
                 addSystemMessage('The chat host is not available. They may return or this chat will expire soon.');
                 startSessionExpiration();
             } else {
@@ -107,31 +265,22 @@
     }
 
     function expireSession() {
-        if (countdownInterval) {
-            clearInterval(countdownInterval);
-        }
-        if (expirationTimeout) {
-            clearTimeout(expirationTimeout);
-        }
+        if (countdownInterval) clearInterval(countdownInterval);
+        if (expirationTimeout) clearTimeout(expirationTimeout);
         
-        // Clear chat data if host
         if (isHost) {
             chatRef.remove();
         }
         
-        // Leave chat
         leaveChat();
     }
 
     function leaveChat() {
-        // Update presence
         updatePresence(false);
         
-        // Clear references
         if (messagesRef) messagesRef.off();
         if (presenceRef) presenceRef.off();
         
-        // Reset UI
         chatContainer.classList.add('hidden');
         welcomeScreen.classList.remove('hidden');
         chatMessages.innerHTML = '';
@@ -140,7 +289,6 @@
         isHost = false;
         otherUserPresent = false;
         
-        // Remove hash from URL
         window.location.hash = '';
     }
 
@@ -204,7 +352,6 @@
         const shareLink = `${window.location.origin}${window.location.pathname}#${currentChatId}`;
         shareLinkInput.value = shareLink;
         
-        // Update QR code
         if (qrCode) {
             qrCode.clear();
             qrCode.makeCode(shareLink);
@@ -271,11 +418,7 @@
     }
 
     function toggleEmojiPicker() {
-        if (emojiPicker.classList.contains('hidden')) {
-            emojiPicker.classList.remove('hidden');
-        } else {
-            emojiPicker.classList.add('hidden');
-        }
+        emojiPicker.classList.toggle('hidden');
     }
 
     function initEmojiPicker() {
@@ -373,7 +516,7 @@
     }
 
     function generateChatId() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing characters
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let result = '';
         for (let i = 0; i < 6; i++) {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
