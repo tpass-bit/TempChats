@@ -205,6 +205,10 @@ body {
     font-size: 13px;
 }
 
+.beta {
+align: center;
+}
+
 /* Chat Screen */
 .chat-screen {
     flex: 1;
