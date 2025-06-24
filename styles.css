@@ -206,7 +206,17 @@ body {
 }
 
 .beta {
-align: center;
+      position: fixed;
+      bottom: 20px; /* distance from bottom */
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 32px;
+      color: #ffffff;
+      background-color: #333;
+      padding: 15px;
+      border-radius: 50%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      z-index: 999;
 }
 
 /* Chat Screen */
