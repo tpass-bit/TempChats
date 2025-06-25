@@ -206,17 +206,32 @@ body {
 }
 
 .beta {
-      position: fixed;
-      bottom: 20px; /* distance from bottom */
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 32px;
-      color: #ffffff;
-      background-color: #333;
-      padding: 15px;
-      border-radius: 50%;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      z-index: 999;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 32px;
+    color: white;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    padding: 15px;
+    border-radius: 50%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 999;
+    transition: all 0.3s ease;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.beta:hover {
+    transform: translateX(-50%) scale(1.1);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+}
+
+.beta i {
+    font-size: 24px;
 }
 
 /* Chat Screen */
