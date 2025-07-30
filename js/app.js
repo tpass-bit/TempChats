@@ -130,6 +130,10 @@ class TempChatApp {
 
         this.updateShareLinks();
         this.listenForParticipants();
+
+        if (window.Android && window.Android.newChatClicked) {
+        window.Android.newChatClicked();
+        }
     }
 
     joinExistingChat() {
