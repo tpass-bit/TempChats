@@ -1,9 +1,9 @@
-// Utility functions
-function generateUserId() {
+// utils.js
+export function generateUserId() {
     return 'user-' + Math.random().toString(36).substr(2, 9);
 }
 
-function generateChatId() {
+export function generateChatId() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
     for (let i = 0; i < 6; i++) {
@@ -12,13 +12,13 @@ function generateChatId() {
     return result;
 }
 
-function sanitizeInput(text) {
+export function sanitizeInput(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-function showCopiedFeedback(button) {
+export function showCopiedFeedback(button) {
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-check"></i>';
     setTimeout(() => {
@@ -26,16 +26,22 @@ function showCopiedFeedback(button) {
     }, 2000);
 }
 
-function scrollToBottom(element) {
+export function scrollToBottom(element) {
     setTimeout(() => {
         element.scrollTop = element.scrollHeight;
     }, 50);
 }
 
-export {
-    generateUserId,
-    generateChatId,
-    sanitizeInput,
-    showCopiedFeedback,
-    scrollToBottom
-};
+export function showError(message, parentElement) {
+    const errorElement = document.createElement('div');
+    errorElement.classList.add('message', 'system');
+    errorElement.textContent = message;
+    errorElement.style.color = 'var(--danger)';
+    errorElement.style.animation = 'shake 0.5s ease-in-out';
+    
+    parentElement.parentNode.insertBefore(errorElement, parentElement.nextSibling);
+    
+    setTimeout(() => {
+        errorElement.remove();
+    }, 3000);
+}
