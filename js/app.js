@@ -3,12 +3,20 @@ import {
     generateChatId,
     sanitizeInput,
     showCopiedFeedback,
-    scrollToBottom
+    scrollToBottom,
+    showError
 } from './utils.js';
 
 class TempChatApp {
     constructor() {
-        // DOM Elements
+        this.initDomElements();
+        this.initState();
+        this.initEventListeners();
+        this.checkUrlHash();
+        this.setupConnectionListener();
+    }
+
+    initDomElements() {
         this.dom = {
             welcomeScreen: document.getElementById('welcomeScreen'),
             chatContainer: document.getElementById('chatContainer'),
@@ -41,10 +49,12 @@ class TempChatApp {
             shareWhatsApp: document.getElementById('shareWhatsApp'),
             shareTelegram: document.getElementById('shareTelegram'),
             shareEmail: document.getElementById('shareEmail'),
-            qrCodeCanvas: document.getElementById('qrCodeCanvas')
+            qrCodeCanvas: document.getElementById('qrCodeCanvas'),
+            joinSection: document.querySelector('.join-section')
         };
+    }
 
-        // App State
+    initState() {
         this.state = {
             currentChatId: '',
             isHost: false,
@@ -55,7 +65,7 @@ class TempChatApp {
             connectionStatus: false,
             qrCode: null,
             lastMessageTime: 0,
-            MESSAGE_RATE_LIMIT: 1000, // 1 second
+            MESSAGE_RATE_LIMIT: 1000,
             firebase: {
                 chatRef: null,
                 messagesRef: null,
@@ -64,18 +74,9 @@ class TempChatApp {
                 connectedRef: null
             }
         };
-
-        this.init();
     }
 
-    init() {
-        this.setupEventListeners();
-        this.checkUrlHash();
-        this.setupConnectionListener();
-    }
-
-    setupEventListeners() {
-        // Button click handlers
+    initEventListeners() {
         this.dom.createChatBtn.addEventListener('click', () => this.createNewChat());
         this.dom.joinChatBtn.addEventListener('click', () => this.joinExistingChat());
         this.dom.copyChatIdBtn.addEventListener('click', () => this.copyChatIdToClipboard());
@@ -92,7 +93,6 @@ class TempChatApp {
         this.dom.shareTelegram.addEventListener('click', () => this.shareViaTelegram());
         this.dom.shareEmail.addEventListener('click', () => this.shareViaEmail());
         
-        // Input handlers
         this.dom.messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendMessage();
         });
@@ -140,7 +140,7 @@ class TempChatApp {
         const chatId = this.dom.chatIdInput.value.trim().toUpperCase();
         
         if (!chatId || chatId.length !== 6) {
-            this.showError('Please enter a valid 6-character chat ID');
+            showError('Please enter a valid 6-character chat ID', this.dom.joinSection);
             return;
         }
         
@@ -166,7 +166,6 @@ class TempChatApp {
         this.state.firebase.presenceRef = this.state.firebase.chatRef.child('presence');
         this.state.firebase.participantsRef = this.state.firebase.chatRef.child('participants');
         
-        // Set up message listener
         this.state.firebase.messagesRef.limitToLast(100).on('child_added', (snapshot) => {
             const message = snapshot.val();
             if (message.senderId !== this.state.userId) {
@@ -174,13 +173,11 @@ class TempChatApp {
             }
         });
         
-        // Add user to participants list
         this.state.firebase.participantsRef.child(this.state.userId).set({
             joinedAt: firebase.database.ServerValue.TIMESTAMP,
             isHost: this.state.isHost
         });
         
-        // Set up disconnect cleanup
         this.state.firebase.participantsRef.child(this.state.userId).onDisconnect().remove();
         this.state.firebase.presenceRef.child(this.state.userId).onDisconnect().set(false);
     }
@@ -399,7 +396,6 @@ class TempChatApp {
     }
 
     resetChat() {
-        // Clean up Firebase references
         if (this.state.firebase.presenceRef) {
             this.state.firebase.presenceRef.child(this.state.userId).set(false);
             this.state.firebase.presenceRef.off();
@@ -417,19 +413,16 @@ class TempChatApp {
             this.state.firebase.connectedRef.off();
         }
         
-        // Reset state
         this.state.currentChatId = '';
         this.state.isHost = false;
         this.state.otherUserPresent = false;
         
-        // Clear UI
         this.dom.chatMessages.innerHTML = '';
         this.dom.messageInput.value = '';
         this.dom.sessionExpiring.classList.add('hidden');
         this.dom.chatContainer.classList.add('hidden');
         this.dom.welcomeScreen.classList.remove('hidden');
         
-        // Remove hash from URL
         history.pushState("", document.title, window.location.pathname);
     }
 
@@ -439,21 +432,6 @@ class TempChatApp {
         }).catch(err => {
             console.error('Failed to copy: ', err);
         });
-    }
-
-    showError(message) {
-        const errorElement = document.createElement('div');
-        errorElement.classList.add('message', 'system');
-        errorElement.textContent = message;
-        errorElement.style.color = 'var(--danger)';
-        errorElement.style.animation = 'shake 0.5s ease-in-out';
-        
-        const joinSection = document.querySelector('.join-section');
-        joinSection.parentNode.insertBefore(errorElement, joinSection.nextSibling);
-        
-        setTimeout(() => {
-            errorElement.remove();
-        }, 3000);
     }
 
     updateConnectionStatus() {
@@ -471,7 +449,7 @@ class TempChatApp {
     }
 }
 
-// Initialize the app when DOM is loaded
+// Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
     new TempChatApp();
 });
