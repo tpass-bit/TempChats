@@ -1,23 +1,4 @@
-// Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.2/firebase-app.js";
-import { 
-    getDatabase, ref, onValue, set, push, onDisconnect, serverTimestamp, query 
-} from "https://www.gstatic.com/firebasejs/9.17.2/firebase-database.js";
-
-import firebaseConfig from './firebase-config.js'; // ✅ your config file
-import {
-    generateUserId,
-    generateChatId,
-    sanitizeInput,
-    showCopiedFeedback,
-    scrollToBottom,
-    showError
-} from './utils.js';
-
-// Initialize Firebase using your config
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-
+// app.js
 class TempChatApp {
     constructor() {
         this.initDomElements();
@@ -27,6 +8,7 @@ class TempChatApp {
         this.setupConnectionListener();
     }
 
+    // ---------------- DOM Elements ----------------
     initDomElements() {
         this.dom = {
             welcomeScreen: document.getElementById('welcomeScreen'),
@@ -61,10 +43,12 @@ class TempChatApp {
             shareTelegram: document.getElementById('shareTelegram'),
             shareEmail: document.getElementById('shareEmail'),
             qrCodeCanvas: document.getElementById('qrCodeCanvas'),
-            joinSection: document.querySelector('.join-section')
+            joinSection: document.querySelector('.join-section'),
+            refreshBtn: document.getElementById('refreshBtn')
         };
     }
 
+    // ---------------- State ----------------
     initState() {
         this.state = {
             currentChatId: '',
@@ -77,34 +61,30 @@ class TempChatApp {
             qrCode: null,
             lastMessageTime: 0,
             MESSAGE_RATE_LIMIT: 1000,
-            firebase: {
-                chatRef: null,
-                messagesRef: null,
-                presenceRef: null,
-                participantsRef: null,
-                connectedRef: null
-            }
+            firebase: {}
         };
     }
 
+    // ---------------- Events ----------------
     initEventListeners() {
-        const addSafeListener = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
+        const safe = (el, ev, fn) => el && el.addEventListener(ev, fn);
 
-        addSafeListener(this.dom.createChatBtn, 'click', () => this.createNewChat());
-        addSafeListener(this.dom.joinChatBtn, 'click', () => this.joinExistingChat());
-        addSafeListener(this.dom.copyChatIdBtn, 'click', () => this.copyChatIdToClipboard());
-        addSafeListener(this.dom.sendMessageBtn, 'click', () => this.sendMessage());
-        addSafeListener(this.dom.leaveChatBtn, 'click', () => this.leaveChat());
-        addSafeListener(this.dom.closeNowBtn, 'click', () => this.expireSession());
-        addSafeListener(this.dom.infoBtn, 'click', () => this.showInfoModal());
-        addSafeListener(this.dom.closeInfoBtn, 'click', () => this.hideInfoModal());
-        addSafeListener(this.dom.shareBtn, 'click', () => this.showShareModal());
-        addSafeListener(this.dom.closeShareBtn, 'click', () => this.hideShareModal());
-        addSafeListener(this.dom.copyShareBtn, 'click', () => this.copyShareLink());
-        addSafeListener(this.dom.copyDirectShareBtn, 'click', () => this.copyDirectShareLink());
-        addSafeListener(this.dom.shareWhatsApp, 'click', () => this.shareViaWhatsApp());
-        addSafeListener(this.dom.shareTelegram, 'click', () => this.shareViaTelegram());
-        addSafeListener(this.dom.shareEmail, 'click', () => this.shareViaEmail());
+        safe(this.dom.createChatBtn, 'click', () => this.createNewChat());
+        safe(this.dom.joinChatBtn, 'click', () => this.joinExistingChat());
+        safe(this.dom.copyChatIdBtn, 'click', () => this.copyChatIdToClipboard());
+        safe(this.dom.sendMessageBtn, 'click', () => this.sendMessage());
+        safe(this.dom.leaveChatBtn, 'click', () => this.leaveChat());
+        safe(this.dom.closeNowBtn, 'click', () => this.expireSession());
+        safe(this.dom.infoBtn, 'click', () => this.showInfoModal());
+        safe(this.dom.closeInfoBtn, 'click', () => this.hideInfoModal());
+        safe(this.dom.shareBtn, 'click', () => this.showShareModal());
+        safe(this.dom.closeShareBtn, 'click', () => this.hideShareModal());
+        safe(this.dom.copyShareBtn, 'click', () => this.copyShareLink());
+        safe(this.dom.copyDirectShareBtn, 'click', () => this.copyDirectShareLink());
+        safe(this.dom.shareWhatsApp, 'click', () => this.shareViaWhatsApp());
+        safe(this.dom.shareTelegram, 'click', () => this.shareViaTelegram());
+        safe(this.dom.shareEmail, 'click', () => this.shareViaEmail());
+        safe(this.dom.refreshBtn, 'click', () => location.reload());
 
         if (this.dom.messageInput) {
             this.dom.messageInput.addEventListener('keypress', (e) => {
@@ -113,6 +93,7 @@ class TempChatApp {
         }
     }
 
+    // ---------------- Connection ----------------
     checkUrlHash() {
         const hashId = window.location.hash.substring(1);
         if (hashId && hashId.length === 6) {
@@ -124,18 +105,17 @@ class TempChatApp {
     }
 
     setupConnectionListener() {
-        const connectedRef = ref(database, '.info/connected');
-        onValue(connectedRef, (snap) => {
+        this.state.firebase.connectedRef = firebase.database().ref('.info/connected');
+        this.state.firebase.connectedRef.on('value', (snap) => {
             this.state.connectionStatus = snap.val();
             this.updateConnectionStatus();
         });
-        this.state.firebase.connectedRef = connectedRef;
     }
 
+    // ---------------- Chat Logic ----------------
     createNewChat() {
         this.state.currentChatId = generateChatId();
         this.state.isHost = true;
-        this.state.otherUserPresent = false;
         window.location.hash = this.state.currentChatId;
 
         this.setupFirebaseReferences();
@@ -145,7 +125,7 @@ class TempChatApp {
         this.dom.welcomeScreen.classList.add('hidden');
         this.dom.chatContainer.classList.remove('hidden');
 
-        this.addSystemMessage('You created a new temporary chat. Share the ID with someone to start chatting!');
+        this.addSystemMessage('You created a new temporary chat. Share the ID!');
         this.addSystemMessage(`Chat ID: ${this.state.currentChatId}`);
 
         this.updateShareLinks();
@@ -176,78 +156,256 @@ class TempChatApp {
     }
 
     setupFirebaseReferences() {
-        this.state.firebase.chatRef = ref(database, `chats/${this.state.currentChatId}`);
-        this.state.firebase.messagesRef = ref(database, `chats/${this.state.currentChatId}/messages`);
-        this.state.firebase.presenceRef = ref(database, `chats/${this.state.currentChatId}/presence`);
-        this.state.firebase.participantsRef = ref(database, `chats/${this.state.currentChatId}/participants`);
+        const db = firebase.database();
+        this.state.firebase.chatRef = db.ref(`chats/${this.state.currentChatId}`);
+        this.state.firebase.messagesRef = this.state.firebase.chatRef.child('messages');
+        this.state.firebase.presenceRef = this.state.firebase.chatRef.child('presence');
+        this.state.firebase.participantsRef = this.state.firebase.chatRef.child('participants');
 
-        onValue(this.state.firebase.messagesRef, (snapshot) => {
-            snapshot.forEach((child) => {
-                const msg = child.val();
-                if (msg.senderId !== this.state.userId) {
-                    this.addMessage(msg.text, 'received');
-                }
-            });
+        // Messages
+        this.state.firebase.messagesRef.limitToLast(100).on('child_added', (snapshot) => {
+            const msg = snapshot.val();
+            if (msg.senderId !== this.state.userId) {
+                this.addMessage(msg.text, 'received');
+            }
         });
 
-        set(ref(database, `chats/${this.state.currentChatId}/participants/${this.state.userId}`), {
-            joinedAt: serverTimestamp(),
+        // Participants
+        this.state.firebase.participantsRef.child(this.state.userId).set({
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
             isHost: this.state.isHost
         });
 
-        onDisconnect(ref(database, `chats/${this.state.currentChatId}/participants/${this.state.userId}`)).remove();
-        onDisconnect(ref(database, `chats/${this.state.currentChatId}/presence/${this.state.userId}`)).set(false);
+        this.state.firebase.participantsRef.child(this.state.userId).onDisconnect().remove();
+        this.state.firebase.presenceRef.child(this.state.userId).onDisconnect().set(false);
     }
 
-    // Clipboard fallback
-    copyFallback(text) {
-        const input = document.createElement('input');
-        document.body.appendChild(input);
-        input.value = text;
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
+    // ---------------- Sharing ----------------
+    updateShareLinks() {
+        const link = `${window.location.origin}${window.location.pathname}#${this.state.currentChatId}`;
+        this.dom.shareLinkInput.value = link;
+        this.dom.directShareInput.value = link;
+        this.initQRCode(link);
     }
 
+    initQRCode(link) {
+        if (this.state.qrCode) {
+            this.state.qrCode.clear();
+            this.state.qrCode.makeCode(link);
+        } else {
+            this.state.qrCode = new QRCode(this.dom.qrCodeCanvas, {
+                text: link,
+                width: 150,
+                height: 150,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+    }
+
+    shareViaWhatsApp() {
+        const link = this.dom.directShareInput.value;
+        window.open(`https://wa.me/?text=${encodeURIComponent(`Join this chat: ${link}`)}`, '_blank');
+    }
+    shareViaTelegram() {
+        const link = this.dom.directShareInput.value;
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=Join this chat`, '_blank');
+    }
+    shareViaEmail() {
+        const link = this.dom.directShareInput.value;
+        window.location.href = `mailto:?subject=Join my temp chat&body=Click this link: ${encodeURIComponent(link)}`;
+    }
+
+    // ---------------- Clipboard ----------------
     copyShareLink() {
-        const text = this.dom.shareLinkInput.value;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text)
-                .then(() => showCopiedFeedback(this.dom.copyShareBtn))
-                .catch(() => this.copyFallback(text));
-        } else this.copyFallback(text);
+        this.copyToClipboard(this.dom.shareLinkInput.value, this.dom.copyShareBtn);
+    }
+    copyDirectShareLink() {
+        this.copyToClipboard(this.dom.directShareInput.value, this.dom.copyDirectShareBtn);
+    }
+    copyChatIdToClipboard() {
+        this.copyToClipboard(this.state.currentChatId, this.dom.copyChatIdBtn);
+    }
+    copyToClipboard(text, btn) {
+        navigator.clipboard?.writeText(text).then(() => {
+            showCopiedFeedback(btn);
+        }).catch(() => {
+            const input = document.createElement('input');
+            input.value = text;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+        });
     }
 
-    copyDirectShareLink() {
-        const text = this.dom.directShareInput.value;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text)
-                .then(() => showCopiedFeedback(this.dom.copyDirectShareBtn))
-                .catch(() => this.copyFallback(text));
-        } else this.copyFallback(text);
+    // ---------------- Messages ----------------
+    sendMessage() {
+        const now = Date.now();
+        if (now - this.state.lastMessageTime < this.state.MESSAGE_RATE_LIMIT) {
+            this.addSystemMessage('Please wait before sending another message');
+            return;
+        }
+
+        const text = sanitizeInput(this.dom.messageInput.value.trim());
+        if (!text) return;
+
+        this.addMessage(text, 'sent');
+        this.dom.messageInput.value = '';
+        this.state.lastMessageTime = now;
+
+        this.state.firebase.messagesRef.push({
+            text,
+            senderId: this.state.userId,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        }).catch(() => {
+            this.addSystemMessage('Failed to send message.');
+        });
     }
+
+    addMessage(text, type) {
+        const el = document.createElement('div');
+        el.classList.add('message', type);
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        el.innerHTML = `<div class="message-text">${text}</div><div class="message-time">${time}</div>`;
+        this.dom.chatMessages.appendChild(el);
+        scrollToBottom(this.dom.chatMessages);
+    }
+
+    addSystemMessage(text) {
+        const el = document.createElement('div');
+        el.classList.add('message', 'system');
+        el.textContent = text;
+        this.dom.chatMessages.appendChild(el);
+        scrollToBottom(this.dom.chatMessages);
+    }
+
+    // ---------------- Presence ----------------
+    listenForParticipants() {
+        this.state.firebase.presenceRef.on('value', (snap) => {
+            const data = snap.val() || {};
+            const others = Object.keys(data).filter(uid => uid !== this.state.userId && data[uid]);
+            if (others.length > 0 && !this.state.otherUserPresent) {
+                this.state.otherUserPresent = true;
+                this.addSystemMessage('Someone joined the chat!');
+                this.updateParticipantsCount();
+            } else if (others.length === 0 && this.state.otherUserPresent) {
+                this.state.otherUserPresent = false;
+                this.addSystemMessage('Other participant left');
+                this.updateParticipantsCount();
+                if (this.state.isHost) this.startSessionExpiration();
+            }
+        });
+    }
+
+    checkHostPresence() {
+        this.state.firebase.presenceRef.on('value', (snap) => {
+            const data = snap.val() || {};
+            this.state.firebase.participantsRef.orderByChild('isHost').equalTo(true).once('value', (hostSnap) => {
+                const hosts = hostSnap.val() || {};
+                const hostIds = Object.keys(hosts);
+                const hostPresent = hostIds.some(id => id !== this.state.userId && data[id]);
+                if (!hostPresent) {
+                    this.addSystemMessage('Host has left. Chat will expire soon.');
+                    this.startSessionExpiration();
+                }
+            });
+        });
+    }
+
+    updateParticipantsCount() {
+        this.state.firebase.presenceRef.once('value').then(snap => {
+            const data = snap.val() || {};
+            const count = Object.keys(data).filter(uid => data[uid]).length;
+            this.dom.infoParticipants.textContent = count;
+        });
+    }
+
+    updatePresence(isPresent) {
+        this.state.firebase.presenceRef.child(this.state.userId).set(isPresent);
+        this.updateParticipantsCount();
+    }
+
+    // ---------------- Expiration ----------------
+    startSessionExpiration() {
+        this.dom.chatContainer.classList.add('hidden');
+        this.dom.sessionExpiring.classList.remove('hidden');
+
+        let seconds = 10;
+        this.dom.countdownElement.textContent = seconds;
+
+        this.state.countdownInterval = setInterval(() => {
+            seconds--;
+            this.dom.countdownElement.textContent = seconds;
+            if (seconds <= 0) {
+                clearInterval(this.state.countdownInterval);
+                this.expireSession();
+            }
+        }, 1000);
+
+        this.state.expirationTimeout = setTimeout(() => this.expireSession(), 10000);
+    }
+
+    expireSession() {
+        clearInterval(this.state.countdownInterval);
+        this.resetChat();
+    }
+
+    // ---------------- Reset ----------------
+    leaveChat() {
+        this.updatePresence(false);
+        this.resetChat();
+    }
+
+    resetChat() {
+        if (this.state.firebase.presenceRef) {
+            this.state.firebase.presenceRef.child(this.state.userId).set(false);
+            this.state.firebase.presenceRef.off();
+        }
+        if (this.state.firebase.messagesRef) this.state.firebase.messagesRef.off();
+        if (this.state.firebase.participantsRef) this.state.firebase.participantsRef.child(this.state.userId).remove();
+        if (this.state.firebase.connectedRef) this.state.firebase.connectedRef.off();
+
+        this.state.currentChatId = '';
+        this.state.isHost = false;
+        this.state.otherUserPresent = false;
+
+        this.dom.chatMessages.innerHTML = '';
+        this.dom.messageInput.value = '';
+        this.dom.sessionExpiring.classList.add('hidden');
+        this.dom.chatContainer.classList.add('hidden');
+        this.dom.welcomeScreen.classList.remove('hidden');
+
+        history.pushState("", document.title, window.location.pathname);
+    }
+
+    // ---------------- UI ----------------
+    showShareModal() { this.updateShareLinks(); this.dom.shareModal.classList.remove('hidden'); }
+    hideShareModal() { this.dom.shareModal.classList.add('hidden'); }
+    showInfoModal() {
+        this.dom.infoChatId.textContent = this.state.currentChatId;
+        this.dom.infoUserId.textContent = this.state.userId;
+        this.updateParticipantsCount();
+        this.updateShareLinks();
+        this.dom.infoModal.classList.remove('hidden');
+    }
+    hideInfoModal() { this.dom.infoModal.classList.add('hidden'); }
 
     updateConnectionStatus() {
         if (this.state.connectionStatus) {
             this.dom.statusText.textContent = 'Connected';
             this.dom.statusText.style.color = 'var(--success)';
-            const icon = document.querySelector('.connection-status i');
-            if (icon) icon.className = 'fas fa-circle connected';
-            if (this.dom.sendMessageBtn) this.dom.sendMessageBtn.disabled = false;
+            document.querySelector('.connection-status i').className = 'fas fa-circle connected';
+            this.dom.sendMessageBtn.disabled = false;
         } else {
             this.dom.statusText.textContent = 'Disconnected';
             this.dom.statusText.style.color = 'var(--danger)';
-            const icon = document.querySelector('.connection-status i');
-            if (icon) icon.className = 'fas fa-circle disconnected';
-            if (this.dom.sendMessageBtn) this.dom.sendMessageBtn.disabled = true;
+            document.querySelector('.connection-status i').className = 'fas fa-circle disconnected';
+            this.dom.sendMessageBtn.disabled = true;
         }
     }
 }
-
-// Global error catcher
-window.addEventListener('error', (e) => {
-    console.error("Global Error:", e.message, e.error);
-});
 
 // Start app
 document.addEventListener('DOMContentLoaded', () => {
