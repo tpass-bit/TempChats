@@ -1,9 +1,9 @@
 // utils.js
-export function generateUserId() {
+function generateUserId() {
     return 'user-' + Math.random().toString(36).substr(2, 9);
 }
 
-export function generateChatId() {
+function generateChatId() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
     for (let i = 0; i < 6; i++) {
@@ -12,13 +12,13 @@ export function generateChatId() {
     return result;
 }
 
-export function sanitizeInput(text) {
+function sanitizeInput(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-export function showCopiedFeedback(button) {
+function showCopiedFeedback(button) {
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-check"></i>';
     setTimeout(() => {
@@ -26,13 +26,13 @@ export function showCopiedFeedback(button) {
     }, 2000);
 }
 
-export function scrollToBottom(element) {
+function scrollToBottom(element) {
     setTimeout(() => {
         element.scrollTop = element.scrollHeight;
     }, 50);
 }
 
-export function showError(message, parentElement) {
+function showError(message, parentElement) {
     const errorElement = document.createElement('div');
     errorElement.classList.add('message', 'system');
     errorElement.textContent = message;
