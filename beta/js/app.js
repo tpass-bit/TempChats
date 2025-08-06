@@ -50,33 +50,18 @@ let expirationTimer;
 let offlineTimer;
 let countdownInterval;
 let chatSettings = {
-    expireTime: 24, // hours
+    expireTime: 24,
     maxUsers: 2,
     waitForRejoin: true
 };
 
-// Initialize the app
+// Initialize app
 function init() {
     userId = generateId();
     setupEventListeners();
-    monitorConnectionStatus();
 }
 
-// Monitor Firebase connection status
-function monitorConnectionStatus() {
-    const connectedRef = database.ref(".info/connected");
-    connectedRef.on("value", (snap) => {
-        if (snap.val() === true) {
-            statusText.textContent = "Online";
-            statusText.previousElementSibling.className = "fas fa-circle connected";
-        } else {
-            statusText.textContent = "Offline";
-            statusText.previousElementSibling.className = "fas fa-circle disconnected";
-        }
-    });
-}
-
-// Set up event listeners
+// Event listeners
 function setupEventListeners() {
     createChatBtn.addEventListener('click', createNewChat);
     joinChatBtn.addEventListener('click', joinChat);
@@ -100,14 +85,14 @@ function setupEventListeners() {
     closeChatNowBtn.addEventListener('click', closeChatNow);
 }
 
-// Create a new chat
+// Create new chat
 function createNewChat() {
     chatId = generateId();
     isHost = true;
     setupChat();
 }
 
-// Join an existing chat
+// Join existing chat
 function joinChat() {
     const inputId = chatIdInput.value.trim();
     if (!inputId) {
@@ -119,7 +104,7 @@ function joinChat() {
     setupChat();
 }
 
-// Set up chat references and listeners
+// Setup chat
 function setupChat() {
     chatRef = database.ref(`chats/${chatId}`);
     messagesRef = chatRef.child('messages');
@@ -139,29 +124,27 @@ function setupChat() {
                 joinChatAsUser();
             } else {
                 alert('Chat does not exist');
-                return;
             }
         }
     });
 
     setupChatListeners();
-    showChatScreen();
 }
 
-// Check user limit before joining
+// Check user limit
 function checkUserLimitAndJoin() {
     usersRef.once('value').then((snapshot) => {
         const users = snapshot.val() || {};
         const userCount = Object.keys(users).length;
         if (userCount >= chatSettings.maxUsers) {
-            alert('This chat has reached the maximum number of participants');
+            alert('Chat is full');
             return;
         }
         joinChatAsUser();
     });
 }
 
-// Join chat as a user
+// Join chat as user
 function joinChatAsUser() {
     const userRef = usersRef.child(userId);
     userRef.set(true);
@@ -172,22 +155,20 @@ function joinChatAsUser() {
         const userCount = Object.keys(users).length;
         infoParticipants.textContent = userCount;
 
-        if (isHost && userCount === 1 && Object.keys(users)[0] === userId) {
-            // Grace period before showing "User Offline"
-            setTimeout(() => {
-                usersRef.once('value').then((latestSnapshot) => {
-                    const latestUsers = latestSnapshot.val() || {};
-                    const latestUserCount = Object.keys(latestUsers).length;
+        if (userCount >= 2) {
+            statusText.textContent = 'Connected';
+            statusText.previousElementSibling.className = 'fas fa-circle connected';
+            showChatScreen();
+        } else {
+            statusText.textContent = 'Waiting for another user to join...';
+            statusText.previousElementSibling.className = 'fas fa-circle waiting';
+            showWaitingScreen();
+        }
 
-                    if (latestUserCount === 1 && Object.keys(latestUsers)[0] === userId) {
-                        if (chatSettings.waitForRejoin) {
-                            showUserOfflineModal();
-                        } else {
-                            startSessionExpiration();
-                        }
-                    }
-                });
-            }, 3000);
+        if (isHost && userCount === 1 && Object.keys(users)[0] === userId) {
+            if (!chatSettings.waitForRejoin) {
+                startSessionExpiration();
+            }
         }
     });
 
@@ -196,9 +177,6 @@ function joinChatAsUser() {
         displayMessage(message);
         scrollToBottom();
     });
-
-    statusText.textContent = 'Connected';
-    statusText.previousElementSibling.className = 'fas fa-circle connected';
 
     infoChatId.textContent = chatId;
     infoUserId.textContent = userId;
@@ -228,31 +206,11 @@ function setupChatListeners() {
     });
 }
 
+// Update settings UI
 function updateSettingsUI() {
     expireTimeSelect.value = chatSettings.expireTime;
     maxUsersInput.value = chatSettings.maxUsers;
     waitForRejoinCheckbox.checked = chatSettings.waitForRejoin;
-}
-
-// User offline modal
-function showUserOfflineModal() {
-    userOfflineModal.classList.remove('hidden');
-    let seconds = 10;
-    waitForRejoinBtn.textContent = `Wait (${seconds} seconds)`;
-    offlineTimer = setInterval(() => {
-        seconds--;
-        waitForRejoinBtn.textContent = `Wait (${seconds} seconds)`;
-        if (seconds <= 0) {
-            clearInterval(offlineTimer);
-            userOfflineModal.classList.add('hidden');
-            startSessionExpiration();
-        }
-    }, 1000);
-}
-
-function waitForUserRejoin() {
-    clearInterval(offlineTimer);
-    userOfflineModal.classList.add('hidden');
 }
 
 // Session expiration
@@ -270,22 +228,46 @@ function startSessionExpiration() {
     }, 1000);
 }
 
+function waitForUserRejoin() {
+    clearInterval(offlineTimer);
+    userOfflineModal.classList.add('hidden');
+}
+
 function closeChatNow() {
     clearInterval(countdownInterval);
     if (isHost) chatRef.remove();
     leaveChat();
 }
 
-// Settings modal
+// Show/hide modals/screens
 function showSettingsModal() {
     if (!isHost) {
-        alert('Only the chat host can change settings');
+        alert('Only the host can change settings');
         return;
     }
     updateSettingsUI();
     settingsModal.classList.remove('hidden');
 }
 
+function showChatScreen() {
+    welcomeScreen.classList.add('hidden');
+    chatContainer.classList.remove('hidden');
+}
+function showWaitingScreen() {
+    welcomeScreen.classList.add('hidden');
+    chatContainer.classList.add('hidden');
+    sessionExpiring.classList.add('hidden');
+    userOfflineModal.classList.add('hidden');
+}
+function showWelcomeScreen() {
+    welcomeScreen.classList.remove('hidden');
+    chatContainer.classList.add('hidden');
+    sessionExpiring.classList.add('hidden');
+    userOfflineModal.classList.add('hidden');
+    chatIdInput.value = '';
+}
+
+// Save settings
 function saveSettings() {
     const newSettings = {
         expireTime: parseInt(expireTimeSelect.value),
@@ -344,36 +326,6 @@ function refreshChat() {
     });
 }
 
-// Show/hide screens
-function showChatScreen() {
-    welcomeScreen.classList.add('hidden');
-    chatContainer.classList.remove('hidden');
-}
-function showWelcomeScreen() {
-    welcomeScreen.classList.remove('hidden');
-    chatContainer.classList.add('hidden');
-    sessionExpiring.classList.add('hidden');
-    userOfflineModal.classList.add('hidden');
-    chatIdInput.value = '';
-}
-
-// Copy functions
-function copyChatId() {
-    navigator.clipboard.writeText(chatId);
-    showTooltip(copyChatIdBtn, 'Copied!');
-}
-function copyShareLink() {
-    navigator.clipboard.writeText(shareLinkInput.value);
-    showTooltip(copyShareBtn, 'Copied!');
-}
-function copyDirectShareLink() {
-    navigator.clipboard.writeText(directShareInput.value);
-    showTooltip(copyDirectShareBtn, 'Copied!');
-}
-function showShareModal() {
-    shareModal.classList.remove('hidden');
-}
-
 // Helpers
 function generateId() {
     return Math.random().toString(36).substring(2, 9);
@@ -396,6 +348,21 @@ function showTooltip(element, text) {
     tooltip.textContent = text;
     element.appendChild(tooltip);
     setTimeout(() => tooltip.remove(), 1500);
+}
+function copyChatId() {
+    navigator.clipboard.writeText(chatId);
+    showTooltip(copyChatIdBtn, 'Copied!');
+}
+function copyShareLink() {
+    navigator.clipboard.writeText(shareLinkInput.value);
+    showTooltip(copyShareBtn, 'Copied!');
+}
+function copyDirectShareLink() {
+    navigator.clipboard.writeText(directShareInput.value);
+    showTooltip(copyDirectShareBtn, 'Copied!');
+}
+function showShareModal() {
+    shareModal.classList.remove('hidden');
 }
 
 // Start app
