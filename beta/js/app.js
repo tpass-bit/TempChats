@@ -1,3 +1,6 @@
+// app.js
+// Make sure firebase-config.js is loaded BEFORE this file in your HTML
+
 // DOM elements
 const welcomeScreen = document.getElementById('welcomeScreen');
 const chatContainer = document.getElementById('chatContainer');
@@ -32,7 +35,8 @@ const expireTimeSelect = document.getElementById('expireTimeSelect');
 const maxUsersInput = document.getElementById('maxUsersInput');
 const waitForRejoinCheckbox = document.getElementById('waitForRejoinCheckbox');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-const roomInfoSection = document.getElementById('roomInfoSection');
+const infoModal = document.getElementById('infoModal');
+const closeInfoBtn = document.getElementById('closeInfoBtn');
 
 // Create Delete Room button
 const deleteRoomBtn = document.createElement('button');
@@ -51,12 +55,12 @@ let isHost = false;
 let countdownInterval;
 let chatSettings = {
     expireTime: 24,
-    maxUsers: 100, // Changed from 2 to 100 as requested
+    maxUsers: 100,
     waitForRejoin: true
 };
 
 // Firebase presence
-let connectedRef = firebase.database().ref(".info/connected");
+let connectedRef = database.ref(".info/connected");
 
 // Init
 function init() {
@@ -76,7 +80,9 @@ function setupEventListeners() {
     joinChatBtn.addEventListener('click', joinChat);
     leaveChatBtn.addEventListener('click', leaveChat);
     sendMessageBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    messageInput.addEventListener('keypress', (e) => { 
+        if (e.key === 'Enter') sendMessage(); 
+    });
     copyChatIdBtn.addEventListener('click', copyChatId);
     refreshBtn.addEventListener('click', refreshChat);
     shareBtn.addEventListener('click', showShareModal);
@@ -87,6 +93,7 @@ function setupEventListeners() {
     settingsBtn.addEventListener('click', showSettingsModal);
     closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
     saveSettingsBtn.addEventListener('click', saveSettings);
+    closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
 
     deleteRoomBtn.addEventListener('click', () => {
         if (isHost && confirm("Are you sure you want to delete this chat room?")) {
@@ -96,9 +103,7 @@ function setupEventListeners() {
     });
 
     window.addEventListener('beforeunload', () => {
-        if (isHost && chatRef) {
-            chatRef.child('hostOffline').set(Date.now());
-        }
+        if (isHost && chatRef) chatRef.child('hostOffline').set(Date.now());
     });
 }
 
@@ -123,24 +128,16 @@ function setupChat() {
     usersRef = chatRef.child('users');
     settingsRef = chatRef.child('settings');
 
-    // Show room info section
-    roomInfoSection.classList.remove('hidden');
-
     chatRef.once('value').then(snap => {
         if (snap.exists()) {
             chatSettings = snap.child('settings').val() || chatSettings;
-            
-            // Ensure minimum 2 users and maximum 100 users
             chatSettings.maxUsers = Math.max(2, Math.min(100, chatSettings.maxUsers));
-            
             checkUserLimitAndJoin();
             
-            // Check if host is offline
             if (snap.child('hostOffline').exists()) {
                 sendSystemMessage("The host has left the chat. This room will expire soon.");
             }
         } else if (isHost) {
-            // Set default settings with min 2 and max 100 users
             chatSettings.maxUsers = 100;
             settingsRef.set(chatSettings);
             joinChatAsUser();
@@ -152,7 +149,6 @@ function setupChat() {
     settingsRef.on('value', snap => {
         if (snap.exists()) {
             chatSettings = snap.val();
-            // Ensure min 2 and max 100 users
             chatSettings.maxUsers = Math.max(2, Math.min(100, chatSettings.maxUsers));
             updateSettingsUI();
         }
@@ -163,7 +159,7 @@ function checkUserLimitAndJoin() {
     usersRef.once('value').then(snap => {
         const users = snap.val() || {};
         if (Object.keys(users).length >= chatSettings.maxUsers) {
-            alert("This chat is full (maximum " + chatSettings.maxUsers + " users)");
+            alert(`This chat is full (maximum ${chatSettings.maxUsers} users)`);
             return;
         }
         joinChatAsUser();
@@ -184,7 +180,6 @@ function joinChatAsUser() {
                 const users = snapshot.val() || {};
                 infoParticipants.textContent = Object.keys(users).length;
 
-                // Show when user joins
                 if (Object.keys(users).length > 1) {
                     sendSystemMessage(`${userId} has joined the chat`);
                 }
@@ -217,7 +212,6 @@ function joinChatAsUser() {
     shareLinkInput.value = shareLink;
     directShareInput.value = shareLink;
 
-    // Fix share link functionality
     new QRCode(document.getElementById('qrCodeCanvas'), {
         text: shareLink,
         width: 150,
@@ -225,6 +219,7 @@ function joinChatAsUser() {
     });
 
     showChatScreen();
+    infoModal.classList.remove('hidden');
 }
 
 function sendMessage() {
@@ -293,12 +288,12 @@ function leaveChat() {
 
 function updateSettingsUI() {
     expireTimeSelect.value = chatSettings.expireTime;
-    maxUsersInput.value = Math.max(2, Math.min(100, chatSettings.maxUsers)); // Ensure min 2 and max 100
+    maxUsersInput.value = Math.max(2, Math.min(100, chatSettings.maxUsers));
     waitForRejoinCheckbox.checked = chatSettings.waitForRejoin;
 }
 
 function saveSettings() {
-    const newMaxUsers = Math.max(2, Math.min(100, parseInt(maxUsersInput.value))); // Ensure min 2 and max 100
+    const newMaxUsers = Math.max(2, Math.min(100, parseInt(maxUsersInput.value)));
     const newSettings = {
         expireTime: parseInt(expireTimeSelect.value),
         maxUsers: newMaxUsers,
@@ -306,6 +301,7 @@ function saveSettings() {
     };
     settingsRef.set(newSettings);
     settingsModal.classList.add('hidden');
+    alert("Settings saved successfully!");
 }
 
 function refreshChat() {
@@ -316,16 +312,23 @@ function refreshChat() {
     });
 }
 
+function showShareModal() {
+    shareModal.classList.remove('hidden');
+}
+
+function showSettingsModal() {
+    updateSettingsUI();
+    settingsModal.classList.remove('hidden');
+}
+
 // UI helpers
 function showChatScreen() {
     welcomeScreen.classList.add('hidden');
     chatContainer.classList.remove('hidden');
-    roomInfoSection.classList.remove('hidden'); // Show room info
 }
 function showWelcomeScreen() {
     welcomeScreen.classList.remove('hidden');
     chatContainer.classList.add('hidden');
-    roomInfoSection.classList.add('hidden'); // Hide room info
     sessionExpiring.classList.add('hidden');
     chatIdInput.value = '';
 }
@@ -351,5 +354,6 @@ function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-
 function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
 function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 
+// Initialize the app
 init();
-
+        
