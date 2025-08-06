@@ -1,6 +1,3 @@
-// app.js
-// Make sure firebase-config.js is loaded BEFORE this file in your HTML
-
 // DOM elements
 const welcomeScreen = document.getElementById('welcomeScreen');
 const chatContainer = document.getElementById('chatContainer');
@@ -78,7 +75,13 @@ function init() {
 function setupEventListeners() {
     createChatBtn.addEventListener('click', createNewChat);
     joinChatBtn.addEventListener('click', joinChat);
-    leaveChatBtn.addEventListener('click', leaveChat);
+    
+    leaveChatBtn.addEventListener('click', () => {
+        if (confirm("Are you sure you want to leave this chat?")) {
+            leaveChat();
+        }
+    });
+
     sendMessageBtn.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => { 
         if (e.key === 'Enter') sendMessage(); 
@@ -212,14 +215,18 @@ function joinChatAsUser() {
     shareLinkInput.value = shareLink;
     directShareInput.value = shareLink;
 
-    new QRCode(document.getElementById('qrCodeCanvas'), {
-        text: shareLink,
-        width: 150,
-        height: 150
-    });
+    const qrCodeCanvas = document.getElementById('qrCodeCanvas');
+    if (qrCodeCanvas) {
+        qrCodeCanvas.innerHTML = '';
+        new QRCode(qrCodeCanvas, {
+            text: shareLink,
+            width: 150,
+            height: 150
+        });
+    }
 
     showChatScreen();
-    infoModal.classList.remove('hidden');
+    // Removed auto-open of infoModal
 }
 
 function sendMessage() {
@@ -356,4 +363,3 @@ function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; 
 
 // Initialize the app
 init();
-        
