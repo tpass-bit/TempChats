@@ -14,8 +14,6 @@ const statusText = document.getElementById('statusText');
 const refreshBtn = document.getElementById('refreshBtn');
 const shareBtn = document.getElementById('shareBtn');
 const settingsBtn = document.getElementById('settingsBtn');
-const infoModal = document.getElementById('infoModal');
-const closeInfoBtn = document.getElementById('closeInfoBtn');
 const infoChatId = document.getElementById('infoChatId');
 const infoUserId = document.getElementById('infoUserId');
 const infoParticipants = document.getElementById('infoParticipants');
@@ -35,11 +33,11 @@ const maxUsersInput = document.getElementById('maxUsersInput');
 const waitForRejoinCheckbox = document.getElementById('waitForRejoinCheckbox');
 const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-// Add Delete Room button for host
+// Create Delete Room button
 const deleteRoomBtn = document.createElement('button');
 deleteRoomBtn.textContent = "Delete Room";
-deleteRoomBtn.className = "btn danger";
-document.querySelector('.settings-actions').appendChild(deleteRoomBtn);
+deleteRoomBtn.className = "btn danger hidden";
+document.querySelector('.header-actions').appendChild(deleteRoomBtn);
 
 // App state
 let chatId = '';
@@ -50,147 +48,141 @@ let usersRef;
 let settingsRef;
 let isHost = false;
 let countdownInterval;
-let hostCheckTimer;
 let chatSettings = {
     expireTime: 24,
     maxUsers: 2,
     waitForRejoin: true
 };
 
-// Initialize app
+// Firebase presence
+let connectedRef = firebase.database().ref(".info/connected");
+
+// Init
 function init() {
     userId = generateId();
     setupEventListeners();
 
-    // Auto join if ?chat= in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const chatParam = urlParams.get('chat');
-    if (chatParam) {
-        chatIdInput.value = chatParam;
+    // Auto join via ?chat= param
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('chat')) {
+        chatIdInput.value = params.get('chat');
         joinChat();
     }
 }
 
-// Event listeners
 function setupEventListeners() {
     createChatBtn.addEventListener('click', createNewChat);
     joinChatBtn.addEventListener('click', joinChat);
     leaveChatBtn.addEventListener('click', leaveChat);
     sendMessageBtn.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-    });
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
     copyChatIdBtn.addEventListener('click', copyChatId);
     refreshBtn.addEventListener('click', refreshChat);
     shareBtn.addEventListener('click', showShareModal);
-    settingsBtn.addEventListener('click', showSettingsModal);
-    closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
-    copyShareBtn.addEventListener('click', copyShareLink);
     closeShareBtn.addEventListener('click', () => shareModal.classList.add('hidden'));
+    copyShareBtn.addEventListener('click', copyShareLink);
     copyDirectShareBtn.addEventListener('click', copyDirectShareLink);
     closeNowBtn.addEventListener('click', closeChatNow);
+    settingsBtn.addEventListener('click', showSettingsModal);
     closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
     saveSettingsBtn.addEventListener('click', saveSettings);
 
     deleteRoomBtn.addEventListener('click', () => {
-        if (isHost) {
-            if (confirm("Delete this chat room permanently?")) {
-                chatRef.remove();
-                leaveChat();
-            }
+        if (isHost && confirm("Are you sure you want to delete this chat room?")) {
+            chatRef.remove();
+            leaveChat();
         }
     });
 
-    window.addEventListener('beforeunload', handleHostTabClose);
+    window.addEventListener('beforeunload', () => {
+        if (isHost && chatRef) chatRef.child('hostOffline').set(Date.now());
+    });
 }
 
-// Create chat
 function createNewChat() {
     chatId = generateId();
     isHost = true;
+    deleteRoomBtn.classList.remove('hidden');
     setupChat();
 }
 
-// Join chat
 function joinChat() {
-    const inputId = chatIdInput.value.trim();
-    if (!inputId) {
-        alert('Please enter a chat ID');
-        return;
-    }
-    chatId = inputId;
+    if (!chatIdInput.value.trim()) return alert("Enter a chat ID");
+    chatId = chatIdInput.value.trim();
     isHost = false;
+    deleteRoomBtn.classList.add('hidden');
     setupChat();
 }
 
-// Setup chat
 function setupChat() {
     chatRef = database.ref(`chats/${chatId}`);
     messagesRef = chatRef.child('messages');
     usersRef = chatRef.child('users');
     settingsRef = chatRef.child('settings');
 
-    chatRef.once('value').then((snapshot) => {
-        if (snapshot.exists()) {
-            if (snapshot.child('settings').exists()) {
-                chatSettings = snapshot.child('settings').val();
-                updateSettingsUI();
-            }
+    chatRef.once('value').then(snap => {
+        if (snap.exists()) {
+            chatSettings = snap.child('settings').val() || chatSettings;
             checkUserLimitAndJoin();
+        } else if (isHost) {
+            settingsRef.set(chatSettings);
+            joinChatAsUser();
         } else {
-            if (isHost) {
-                settingsRef.set(chatSettings);
-                joinChatAsUser();
-            } else {
-                alert('Chat does not exist');
-            }
+            alert("Chat does not exist!");
         }
     });
 
-    settingsRef.on('value', (snapshot) => {
-        if (snapshot.exists()) {
-            chatSettings = snapshot.val();
+    settingsRef.on('value', snap => {
+        if (snap.exists()) {
+            chatSettings = snap.val();
             updateSettingsUI();
         }
     });
 }
 
-// Check user limit
 function checkUserLimitAndJoin() {
-    usersRef.once('value').then((snapshot) => {
-        const users = snapshot.val() || {};
+    usersRef.once('value').then(snap => {
+        const users = snap.val() || {};
         if (Object.keys(users).length >= chatSettings.maxUsers) {
-            alert('This chat is full');
+            alert("This chat is full");
             return;
         }
         joinChatAsUser();
     });
 }
 
-// Join as user
 function joinChatAsUser() {
     const userRef = usersRef.child(userId);
-    userRef.set(true);
-    userRef.onDisconnect().remove();
 
-    usersRef.on('value', (snapshot) => {
-        const users = snapshot.val() || {};
-        infoParticipants.textContent = Object.keys(users).length;
+    connectedRef.on('value', (snap) => {
+        if (snap.val() === true) {
+            userRef.set({ online: true, joinedAt: Date.now() });
+            userRef.onDisconnect().remove();
 
-        showChatScreen();
+            sendSystemMessage(`${userId} joined the chat`);
 
-        if (!isHost && !Object.keys(users).includes(Object.keys(users)[0])) {
-            startHostCheck();
+            usersRef.on('value', (snapshot) => {
+                const users = snapshot.val() || {};
+                infoParticipants.textContent = Object.keys(users).length;
+
+                if (isHost && Object.keys(users).length === 1) {
+                    startSessionExpiration();
+                }
+
+                if (!isHost && !Object.keys(users).includes(Object.keys(users)[0])) {
+                    startSessionExpiration();
+                }
+            });
         }
     });
 
-    messagesRef.on('child_added', (snapshot) => {
-        displayMessage(snapshot.val());
+    messagesRef.on('child_added', (snap) => {
+        displayMessage(snap.val());
         scrollToBottom();
     });
 
-    statusText.textContent = 'Connected';
-    statusText.previousElementSibling.className = 'fas fa-circle connected';
+    statusText.textContent = "Connected";
+    statusText.previousElementSibling.className = "fas fa-circle connected";
 
     infoChatId.textContent = chatId;
     infoUserId.textContent = userId;
@@ -203,60 +195,12 @@ function joinChatAsUser() {
     new QRCode(document.getElementById('qrCodeCanvas'), {
         text: shareLink,
         width: 150,
-        height: 150,
-        colorDark: "#000",
-        colorLight: "#fff",
-        correctLevel: QRCode.CorrectLevel.H
+        height: 150
     });
+
+    showChatScreen();
 }
 
-// Update settings UI
-function updateSettingsUI() {
-    expireTimeSelect.value = chatSettings.expireTime;
-    maxUsersInput.value = Math.max(2, chatSettings.maxUsers);
-    waitForRejoinCheckbox.checked = chatSettings.waitForRejoin;
-}
-
-// Save settings
-function saveSettings() {
-    const newMaxUsers = Math.max(2, parseInt(maxUsersInput.value));
-    const newSettings = {
-        expireTime: parseInt(expireTimeSelect.value),
-        maxUsers: newMaxUsers,
-        waitForRejoin: waitForRejoinCheckbox.checked
-    };
-    settingsRef.set(newSettings).then(() => {
-        chatSettings = newSettings;
-        settingsModal.classList.add('hidden');
-    });
-}
-
-// Host tab close detection
-function handleHostTabClose() {
-    if (isHost) chatRef.child('hostOffline').set(Date.now());
-}
-
-// Start host check for participants
-function startHostCheck() {
-    if (hostCheckTimer) return;
-    hostCheckTimer = setTimeout(() => {
-        sessionExpiring.classList.remove('hidden');
-        let seconds = 10;
-        countdown.textContent = seconds;
-
-        countdownInterval = setInterval(() => {
-            seconds--;
-            countdown.textContent = seconds;
-            if (seconds <= 0) {
-                clearInterval(countdownInterval);
-                chatRef.remove();
-                leaveChat();
-            }
-        }, 1000);
-    }, 5000);
-}
-
-// Send message
 function sendMessage() {
     const text = messageInput.value.trim();
     if (!text) return;
@@ -264,15 +208,25 @@ function sendMessage() {
         id: generateId(),
         text,
         sender: userId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        system: false
     });
     messageInput.value = '';
 }
 
-// Display message
+function sendSystemMessage(text) {
+    messagesRef.push({
+        id: generateId(),
+        text,
+        sender: "system",
+        timestamp: Date.now(),
+        system: true
+    });
+}
+
 function displayMessage(msg) {
     const el = document.createElement('div');
-    el.className = `message ${msg.sender === userId ? 'sent' : 'received'}`;
+    el.className = `message ${msg.sender === userId ? 'sent' : (msg.system ? 'system' : 'received')}`;
     el.innerHTML = `
         <div class="message-content">${escapeHtml(msg.text)}</div>
         <div class="message-time">${formatTime(msg.timestamp)}</div>
@@ -280,25 +234,58 @@ function displayMessage(msg) {
     chatMessages.appendChild(el);
 }
 
-// Leave chat
+function startSessionExpiration() {
+    sessionExpiring.classList.remove('hidden');
+    let sec = 10;
+    countdown.textContent = sec;
+    countdownInterval = setInterval(() => {
+        sec--;
+        countdown.textContent = sec;
+        if (sec <= 0) {
+            clearInterval(countdownInterval);
+            closeChatNow();
+        }
+    }, 1000);
+}
+
+function closeChatNow() {
+    clearInterval(countdownInterval);
+    if (isHost) chatRef.remove();
+    leaveChat();
+}
+
 function leaveChat() {
     if (usersRef) usersRef.child(userId).remove();
     if (messagesRef) messagesRef.off();
     if (usersRef) usersRef.off();
     if (settingsRef) settingsRef.off();
     if (chatRef) chatRef.off();
-
     clearInterval(countdownInterval);
-    clearTimeout(hostCheckTimer);
-
+    sendSystemMessage(`${userId} left the chat`);
     showWelcomeScreen();
 }
 
-// Refresh messages
+function updateSettingsUI() {
+    expireTimeSelect.value = chatSettings.expireTime;
+    maxUsersInput.value = Math.max(2, chatSettings.maxUsers);
+    waitForRejoinCheckbox.checked = chatSettings.waitForRejoin;
+}
+
+function saveSettings() {
+    const newMaxUsers = Math.max(2, parseInt(maxUsersInput.value));
+    const newSettings = {
+        expireTime: parseInt(expireTimeSelect.value),
+        maxUsers: newMaxUsers,
+        waitForRejoin: waitForRejoinCheckbox.checked
+    };
+    settingsRef.set(newSettings);
+    settingsModal.classList.add('hidden');
+}
+
 function refreshChat() {
     chatMessages.innerHTML = '';
-    messagesRef.once('value').then((snapshot) => {
-        snapshot.forEach((child) => displayMessage(child.val()));
+    messagesRef.once('value').then(snap => {
+        snap.forEach(c => displayMessage(c.val()));
         scrollToBottom();
     });
 }
@@ -314,48 +301,14 @@ function showWelcomeScreen() {
     sessionExpiring.classList.add('hidden');
     chatIdInput.value = '';
 }
-function copyChatId() {
-    navigator.clipboard.writeText(chatId);
-    showTooltip(copyChatIdBtn, 'Copied!');
-}
-function copyShareLink() {
-    navigator.clipboard.writeText(shareLinkInput.value);
-    showTooltip(copyShareBtn, 'Copied!');
-}
-function copyDirectShareLink() {
-    navigator.clipboard.writeText(directShareInput.value);
-    showTooltip(copyDirectShareBtn, 'Copied!');
-}
-function showShareModal() {
-    shareModal.classList.remove('hidden');
-}
-function closeChatNow() {
-    clearInterval(countdownInterval);
-    if (isHost) chatRef.remove();
-    leaveChat();
-}
+function copyChatId() { navigator.clipboard.writeText(chatId); }
+function copyShareLink() { navigator.clipboard.writeText(shareLinkInput.value); }
+function copyDirectShareLink() { navigator.clipboard.writeText(directShareInput.value); }
 
-// Utilities
-function generateId() {
-    return Math.random().toString(36).substr(2, 9);
-}
-function formatTime(ts) {
-    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-function scrollToBottom() {
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-function showTooltip(el, text) {
-    const t = document.createElement('div');
-    t.className = 'tooltip';
-    t.textContent = text;
-    el.appendChild(t);
-    setTimeout(() => t.remove(), 1000);
-}
+// Utils
+function generateId() { return Math.random().toString(36).substr(2, 9); }
+function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
 
 init();
