@@ -49,7 +49,7 @@ let isHost = false;
 let offlineTimer;
 let countdownInterval;
 let chatSettings = {
-    expireTime: 24, // hours
+    expireTime: 24,
     maxUsers: 2,
     waitForRejoin: true
 };
@@ -60,7 +60,6 @@ function init() {
     setupEventListeners();
 }
 
-// Set up event listeners
 function setupEventListeners() {
     createChatBtn.addEventListener('click', createNewChat);
     joinChatBtn.addEventListener('click', joinChat);
@@ -103,7 +102,7 @@ function joinChat() {
     setupChat();
 }
 
-// Set up chat references and listeners
+// Set up chat
 function setupChat() {
     chatRef = database.ref(`chats/${chatId}`);
     messagesRef = chatRef.child('messages');
@@ -130,12 +129,11 @@ function setupChat() {
     setupChatListeners();
 }
 
-// Check user limit before joining
+// Check user limit
 function checkUserLimitAndJoin() {
     usersRef.once('value').then((snapshot) => {
         const users = snapshot.val() || {};
         const userCount = Object.keys(users).length;
-
         if (userCount >= chatSettings.maxUsers) {
             alert('This chat has reached the maximum number of participants');
             return;
@@ -157,7 +155,8 @@ function joinChatAsUser() {
 
         showChatScreen();
 
-        if (isHost && userCount === 1 && Object.keys(users)[0] === userId) {
+        // Only show "offline" modal if there were 2+ users before
+        if (isHost && userCount > 1 && Object.keys(users)[0] === userId) {
             if (!chatSettings.waitForRejoin) {
                 startSessionExpiration();
             } else {
@@ -193,7 +192,7 @@ function joinChatAsUser() {
     });
 }
 
-// Set up chat listeners
+// Chat listeners
 function setupChatListeners() {
     settingsRef.on('value', (snapshot) => {
         if (snapshot.exists()) {
@@ -203,14 +202,12 @@ function setupChatListeners() {
     });
 }
 
-// Update settings UI
 function updateSettingsUI() {
     expireTimeSelect.value = chatSettings.expireTime;
     maxUsersInput.value = chatSettings.maxUsers;
     waitForRejoinCheckbox.checked = chatSettings.waitForRejoin;
 }
 
-// Show user offline modal
 function showUserOfflineModal() {
     userOfflineModal.classList.remove('hidden');
     let seconds = 10;
@@ -219,7 +216,6 @@ function showUserOfflineModal() {
     offlineTimer = setInterval(() => {
         seconds--;
         waitForRejoinBtn.textContent = `Wait (${seconds} seconds)`;
-
         if (seconds <= 0) {
             clearInterval(offlineTimer);
             userOfflineModal.classList.add('hidden');
@@ -228,13 +224,11 @@ function showUserOfflineModal() {
     }, 1000);
 }
 
-// Wait for user to rejoin
 function waitForUserRejoin() {
     clearInterval(offlineTimer);
     userOfflineModal.classList.add('hidden');
 }
 
-// Start session expiration countdown
 function startSessionExpiration() {
     sessionExpiring.classList.remove('hidden');
     let seconds = 10;
@@ -243,7 +237,6 @@ function startSessionExpiration() {
     countdownInterval = setInterval(() => {
         seconds--;
         countdown.textContent = seconds;
-
         if (seconds <= 0) {
             clearInterval(countdownInterval);
             closeChatNow();
@@ -251,16 +244,12 @@ function startSessionExpiration() {
     }, 1000);
 }
 
-// Close chat immediately
 function closeChatNow() {
     clearInterval(countdownInterval);
-    if (isHost) {
-        chatRef.remove();
-    }
+    if (isHost) chatRef.remove();
     leaveChat();
 }
 
-// Show settings modal
 function showSettingsModal() {
     if (!isHost) {
         alert('Only the chat host can change settings');
@@ -270,37 +259,31 @@ function showSettingsModal() {
     settingsModal.classList.remove('hidden');
 }
 
-// Save settings
 function saveSettings() {
     const newSettings = {
         expireTime: parseInt(expireTimeSelect.value),
         maxUsers: parseInt(maxUsersInput.value),
         waitForRejoin: waitForRejoinCheckbox.checked
     };
-
     settingsRef.set(newSettings).then(() => {
         chatSettings = newSettings;
         settingsModal.classList.add('hidden');
     });
 }
 
-// Send a message
 function sendMessage() {
     const messageText = messageInput.value.trim();
     if (!messageText) return;
-
     const message = {
         id: generateId(),
         text: messageText,
         sender: userId,
         timestamp: Date.now()
     };
-
     messagesRef.push(message);
     messageInput.value = '';
 }
 
-// Display a message
 function displayMessage(message) {
     const messageElement = document.createElement('div');
     messageElement.className = `message ${message.sender === userId ? 'sent' : 'received'}`;
@@ -311,12 +294,8 @@ function displayMessage(message) {
     chatMessages.appendChild(messageElement);
 }
 
-// Leave the chat
 function leaveChat() {
-    if (usersRef) {
-        usersRef.child(userId).remove();
-    }
-
+    if (usersRef) usersRef.child(userId).remove();
     if (messagesRef) messagesRef.off();
     if (usersRef) usersRef.off();
     if (settingsRef) settingsRef.off();
@@ -328,7 +307,6 @@ function leaveChat() {
     showWelcomeScreen();
 }
 
-// Refresh chat
 function refreshChat() {
     chatMessages.innerHTML = '';
     messagesRef.once('value').then((snapshot) => {
@@ -339,7 +317,6 @@ function refreshChat() {
     });
 }
 
-// Show chat screen
 function showChatScreen() {
     welcomeScreen.classList.add('hidden');
     chatContainer.classList.remove('hidden');
@@ -347,7 +324,6 @@ function showChatScreen() {
     userOfflineModal.classList.add('hidden');
 }
 
-// Show welcome screen
 function showWelcomeScreen() {
     welcomeScreen.classList.remove('hidden');
     chatContainer.classList.add('hidden');
@@ -356,30 +332,25 @@ function showWelcomeScreen() {
     chatIdInput.value = '';
 }
 
-// Copy chat ID to clipboard
 function copyChatId() {
     navigator.clipboard.writeText(chatId);
     showTooltip(copyChatIdBtn, 'Copied!');
 }
 
-// Copy share link
 function copyShareLink() {
     navigator.clipboard.writeText(shareLinkInput.value);
     showTooltip(copyShareBtn, 'Copied!');
 }
 
-// Copy direct share link
 function copyDirectShareLink() {
     navigator.clipboard.writeText(directShareInput.value);
     showTooltip(copyDirectShareBtn, 'Copied!');
 }
 
-// Show share modal
 function showShareModal() {
     shareModal.classList.remove('hidden');
 }
 
-// Helpers
 function generateId() {
     return Math.random().toString(36).substring(2, 9);
 }
