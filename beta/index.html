@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Temp Pro Chat</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Temp Chat</title>
+    <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -19,8 +20,8 @@
                     <div class="logo-icon">
                         <i class="fas fa-comment-dots"></i>
                     </div>
-                    <h1>Temp Beta v2</h1>
-                    <p class="tagline">Secure real-time conversations</p>
+                    <h1>Temp Chat</h1>
+                    <p class="tagline">Secure temporary conversations</p>
                 </div>
                 
                 <div class="action-buttons">
@@ -42,7 +43,7 @@
             </div>
             
             <div class="app-footer">
-                <p>Messages disappear when chat ends | v2.0</p>
+                <p>Messages disappear when chat ends</p>
             </div>
         </div>
 
@@ -66,29 +67,92 @@
                 </div>
                 
                 <div class="header-actions">
-                    <button class="icon-btn" id="participantsBtn" title="Participants">
-                        <i class="fas fa-users"></i>
+                    <button class="icon-btn" id="refreshBtn" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
                     </button>
-                    <button class="icon-btn" id="shareBtn" title="Share">
+                    <button class="icon-btn" id="shareBtn">
                         <i class="fas fa-share-alt"></i>
                     </button>
-                    <button class="icon-btn" id="settingsBtn" title="Settings">
+                    <button class="icon-btn" id="settingsBtn">
                         <i class="fas fa-cog"></i>
                     </button>
                 </div>
             </div>
             
-            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will appear here -->
+            </div>
             
             <div class="chat-input-container">
                 <div class="input-wrapper">
-                    <button class="emoji-btn" id="emojiBtn">
-                        <i class="far fa-smile"></i>
-                    </button>
                     <input type="text" id="messageInput" placeholder="Type a message..." autocomplete="off">
                     <button id="sendMessageBtn" class="send-btn">
                         <i class="fas fa-paper-plane"></i>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay hidden" id="settingsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Chat Settings</h3>
+                    <button class="close-btn" id="closeSettingsBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-item">
+                        <label for="expireTimeSelect">Chat Expiration Time:</label>
+                        <select id="expireTimeSelect">
+                            <option value="1">1 hour</option>
+                            <option value="2">2 hours</option>
+                            <option value="6">6 hours</option>
+                            <option value="12">12 hours</option>
+                            <option value="24" selected>24 hours</option>
+                        </select>
+                    </div>
+                    <div class="settings-item">
+                        <label>Allowed Users:</label>
+                        <div class="allowed-users-container">
+                            <input type="number" id="maxUsersInput" min="1" max="10" value="2" placeholder="Max users">
+                            <p class="hint">Maximum number of participants (including you)</p>
+                        </div>
+                    </div>
+                    <div class="settings-item">
+                        <label>
+                            <input type="checkbox" id="waitForRejoinCheckbox" checked>
+                            Wait for offline users to rejoin
+                        </label>
+                        <p class="hint">If enabled, chat won't expire immediately when users go offline</p>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn primary" id="saveSettingsBtn">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Offline Modal -->
+        <div class="modal-overlay hidden" id="userOfflineModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>User Offline</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="offline-icon">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <p>A participant has gone offline. You can wait for them to rejoin or close the chat now.</p>
+                    <div class="offline-actions">
+                        <button class="btn secondary" id="waitForRejoinBtn">
+                            <i class="fas fa-clock"></i> Wait (10 seconds)
+                        </button>
+                        <button class="btn primary" id="closeChatNowBtn">
+                            <i class="fas fa-times"></i> Close Now
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -107,6 +171,53 @@
             </div>
         </div>
 
+        <!-- Info Modal -->
+        <div class="modal-overlay hidden" id="infoModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Chat Info</h3>
+                    <button class="close-btn" id="closeInfoBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="info-item">
+                        <i class="fas fa-id-card"></i>
+                        <div>
+                            <p class="info-label">Chat ID</p>
+                            <p class="info-value" id="infoChatId"></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-user"></i>
+                        <div>
+                            <p class="info-label">Your ID</p>
+                            <p class="info-value" id="infoUserId"></p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-users"></i>
+                        <div>
+                            <p class="info-label">Participants</p>
+                            <p class="info-value" id="infoParticipants">1</p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-share-alt"></i>
+                        <div>
+                            <p class="info-label">Share Link</p>
+                            <div class="share-link-container">
+                                <input type="text" id="shareLinkInput" readonly>
+                                <button id="copyShareBtn" class="icon-btn small">
+                                    <i class="far fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Share Modal -->
         <div class="modal-overlay hidden" id="shareModal">
             <div class="modal-content share-modal">
@@ -117,10 +228,10 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <p>Share this link to invite others:</p>
+                    <p>Share this link to invite others to the chat:</p>
                     <div class="share-link-container">
-                        <input type="text" id="shareLinkInput" readonly>
-                        <button id="copyShareBtn" class="icon-btn small">
+                        <input type="text" id="directShareInput" readonly>
+                        <button id="copyDirectShareBtn" class="icon-btn small">
                             <i class="far fa-copy"></i>
                         </button>
                     </div>
@@ -142,74 +253,9 @@
                 </div>
             </div>
         </div>
-
-        <!-- Participants Modal -->
-        <div class="modal-overlay hidden" id="participantsModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Participants</h3>
-                    <button class="close-btn" id="closeParticipantsBtn">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <ul class="participants-list" id="participantsList">
-                        <!-- Participants will be added here -->
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Modal -->
-        <div class="modal-overlay hidden" id="settingsModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Settings</h3>
-                    <button class="close-btn" id="closeSettingsBtn">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="settings-option">
-                        <label for="darkModeToggle">Dark Mode</label>
-                        <label class="switch">
-                            <input type="checkbox" id="darkModeToggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                    <div class="settings-option">
-                        <label for="notificationToggle">Notifications</label>
-                        <label class="switch">
-                            <input type="checkbox" id="notificationToggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                    <div class="settings-option">
-                        <label for="soundToggle">Message Sounds</label>
-                        <label class="switch">
-                            <input type="checkbox" id="soundToggle" checked>
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                    <button class="btn danger" id="clearChatBtn">
-                        <i class="fas fa-trash"></i> Clear Chat History
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Emoji Picker -->
-        <div class="emoji-picker hidden" id="emojiPicker"></div>
     </div>
 
-    <!-- Audio Elements -->
-    <audio id="messageSound" src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3" preload="auto"></audio>
-    <audio id="notificationSound" src="https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3" preload="auto"></audio>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/data"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/react"></script>
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
