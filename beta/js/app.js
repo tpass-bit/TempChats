@@ -126,7 +126,6 @@ function setupChat() {
     usersRef = chatRef.child('users');
     settingsRef = chatRef.child('settings');
 
-    // Check if chat exists
     chatRef.once('value').then((snapshot) => {
         if (snapshot.exists()) {
             if (snapshot.child('settings').exists()) {
@@ -149,7 +148,7 @@ function setupChat() {
     showChatScreen();
 }
 
-// Check user limit
+// Check user limit before joining
 function checkUserLimitAndJoin() {
     usersRef.once('value').then((snapshot) => {
         const users = snapshot.val() || {};
@@ -162,7 +161,7 @@ function checkUserLimitAndJoin() {
     });
 }
 
-// Join chat
+// Join chat as a user
 function joinChatAsUser() {
     const userRef = usersRef.child(userId);
     userRef.set(true);
@@ -172,12 +171,23 @@ function joinChatAsUser() {
         const users = snapshot.val() || {};
         const userCount = Object.keys(users).length;
         infoParticipants.textContent = userCount;
+
         if (isHost && userCount === 1 && Object.keys(users)[0] === userId) {
-            if (chatSettings.waitForRejoin) {
-                showUserOfflineModal();
-            } else {
-                startSessionExpiration();
-            }
+            // Grace period before showing "User Offline"
+            setTimeout(() => {
+                usersRef.once('value').then((latestSnapshot) => {
+                    const latestUsers = latestSnapshot.val() || {};
+                    const latestUserCount = Object.keys(latestUsers).length;
+
+                    if (latestUserCount === 1 && Object.keys(latestUsers)[0] === userId) {
+                        if (chatSettings.waitForRejoin) {
+                            showUserOfflineModal();
+                        } else {
+                            startSessionExpiration();
+                        }
+                    }
+                });
+            }, 3000);
         }
     });
 
@@ -208,7 +218,7 @@ function joinChatAsUser() {
     });
 }
 
-// Listeners
+// Chat listeners
 function setupChatListeners() {
     settingsRef.on('value', (snapshot) => {
         if (snapshot.exists()) {
@@ -245,7 +255,7 @@ function waitForUserRejoin() {
     userOfflineModal.classList.add('hidden');
 }
 
-// Expiration countdown
+// Session expiration
 function startSessionExpiration() {
     sessionExpiring.classList.remove('hidden');
     let seconds = 10;
@@ -266,7 +276,7 @@ function closeChatNow() {
     leaveChat();
 }
 
-// Settings
+// Settings modal
 function showSettingsModal() {
     if (!isHost) {
         alert('Only the chat host can change settings');
@@ -312,7 +322,7 @@ function displayMessage(message) {
     chatMessages.appendChild(messageElement);
 }
 
-// Leave
+// Leave chat
 function leaveChat() {
     if (usersRef) usersRef.child(userId).remove();
     if (messagesRef) messagesRef.off();
@@ -325,7 +335,7 @@ function leaveChat() {
     showWelcomeScreen();
 }
 
-// Refresh
+// Refresh chat
 function refreshChat() {
     chatMessages.innerHTML = '';
     messagesRef.once('value').then((snapshot) => {
@@ -334,7 +344,7 @@ function refreshChat() {
     });
 }
 
-// Screens
+// Show/hide screens
 function showChatScreen() {
     welcomeScreen.classList.add('hidden');
     chatContainer.classList.remove('hidden');
@@ -390,4 +400,4 @@ function showTooltip(element, text) {
 
 // Start app
 document.addEventListener('DOMContentLoaded', init);
-    
+        
