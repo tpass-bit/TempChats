@@ -1,6 +1,3 @@
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
 
 // DOM elements
 const welcomeScreen = document.getElementById('welcomeScreen');
